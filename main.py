@@ -7,7 +7,7 @@ from typing import Callable, Dict, Iterable, List, Sequence, Tuple
 from borehole_class import Borehole
 from grunt_class import PermafrostSoil, SoilType
 from II_calculations import disp_calculation
-from widgets import show_error
+from widgets import create_text, show_error
 
 
 class ParameterInput:
@@ -29,7 +29,8 @@ class ParameterInput:
         frame.grid_columnconfigure(1, weight=1)
 
         self.label_widget = ttk.Label(frame, text=label)
-        self.entry = ttk.Entry(frame, textvariable=self.var)
+        self.entry = create_text(frame, method="entry")
+        self.entry.configure(textvariable=self.var)
         self.units_widget = ttk.Combobox(
             frame,
             values=[u[0] for u in units],
@@ -125,7 +126,8 @@ class LayerRow:
             textvariable=self.var_soil,
             state="readonly",
         )
-        self.entry_thickness = ttk.Entry(self.frame, textvariable=self.var_thickness, width=10)
+        self.entry_thickness = create_text(self.frame, method="entry")
+        self.entry_thickness.configure(textvariable=self.var_thickness, width=10)
         self.btn_remove = ttk.Button(self.frame, text="Удалить", command=self._handle_remove)
 
         self.cmb_soil.grid(row=0, column=0, sticky="we")
@@ -190,10 +192,14 @@ class SoilDialog:
         self.var_mth = tk.StringVar()
 
         ttk.Label(form, text="Код").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Entry(form, textvariable=self.var_code, width=12).grid(row=0, column=1, sticky="we", pady=2)
+        entry_code = create_text(form, method="entry")
+        entry_code.configure(textvariable=self.var_code, width=12)
+        entry_code.grid(row=0, column=1, sticky="we", pady=2)
 
         ttk.Label(form, text="Название").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Entry(form, textvariable=self.var_name).grid(row=1, column=1, sticky="we", pady=2)
+        entry_name = create_text(form, method="entry")
+        entry_name.configure(textvariable=self.var_name)
+        entry_name.grid(row=1, column=1, sticky="we", pady=2)
 
         ttk.Label(form, text="Тип грунта").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
         self.cmb_soil_type = ttk.Combobox(
@@ -205,13 +211,19 @@ class SoilDialog:
         self.cmb_soil_type.grid(row=2, column=1, sticky="we", pady=2)
 
         ttk.Label(form, text="Плотность, кг/м³").grid(row=3, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Entry(form, textvariable=self.var_rho).grid(row=3, column=1, sticky="we", pady=2)
+        entry_rho = create_text(form, method="entry")
+        entry_rho.configure(textvariable=self.var_rho)
+        entry_rho.grid(row=3, column=1, sticky="we", pady=2)
 
         ttk.Label(form, text="Ath").grid(row=4, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Entry(form, textvariable=self.var_Ath).grid(row=4, column=1, sticky="we", pady=2)
+        entry_Ath = create_text(form, method="entry")
+        entry_Ath.configure(textvariable=self.var_Ath)
+        entry_Ath.grid(row=4, column=1, sticky="we", pady=2)
 
         ttk.Label(form, text="mth, кПа⁻¹").grid(row=5, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Entry(form, textvariable=self.var_mth).grid(row=5, column=1, sticky="we", pady=2)
+        entry_mth = create_text(form, method="entry")
+        entry_mth.configure(textvariable=self.var_mth)
+        entry_mth.grid(row=5, column=1, sticky="we", pady=2)
 
         ttk.Button(form, text="Добавить", command=self._add_soil).grid(
             row=6, column=0, columnspan=2, pady=(8, 0)
@@ -370,15 +382,15 @@ class App:
 
         ttk.Label(borehole_frame, text="Название скважины").grid(row=0, column=0, sticky="w")
         self.var_borehole_code = tk.StringVar(value="BH-01")
-        ttk.Entry(borehole_frame, textvariable=self.var_borehole_code).grid(
-            row=0, column=1, sticky="we", padx=(8, 0)
-        )
+        borehole_code_entry = create_text(borehole_frame, method="entry")
+        borehole_code_entry.configure(textvariable=self.var_borehole_code)
+        borehole_code_entry.grid(row=0, column=1, sticky="we", padx=(8, 0))
 
         ttk.Label(borehole_frame, text="Отметка устья, м").grid(row=1, column=0, sticky="w")
         self.var_borehole_top = tk.StringVar(value="100")
-        ttk.Entry(borehole_frame, textvariable=self.var_borehole_top).grid(
-            row=1, column=1, sticky="we", padx=(8, 0)
-        )
+        borehole_top_entry = create_text(borehole_frame, method="entry")
+        borehole_top_entry.configure(textvariable=self.var_borehole_top)
+        borehole_top_entry.grid(row=1, column=1, sticky="we", padx=(8, 0))
 
         ttk.Button(
             borehole_frame,
@@ -411,9 +423,9 @@ class App:
         )
         ttk.Label(result_frame, text="Результат, м").grid(row=0, column=1)
         self.result_var = tk.StringVar()
-        ttk.Entry(result_frame, textvariable=self.result_var, state="readonly", width=20).grid(
-            row=0, column=2
-        )
+        result_entry = create_text(result_frame, method="entry", state="readonly")
+        result_entry.configure(textvariable=self.result_var, width=20)
+        result_entry.grid(row=0, column=2)
 
         main_frame.grid_rowconfigure(2, weight=1)
         main_frame.grid_columnconfigure(0, weight=1)

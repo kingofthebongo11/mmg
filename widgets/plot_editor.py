@@ -18,6 +18,7 @@ from tkinter import ttk, colorchooser
 
 from color_palettes import PALETTES
 from .range_line import RangeLine
+from .text_widget import create_text
 
 
 @dataclass
@@ -43,8 +44,8 @@ class _RangeWidgets:
     lower_label: ttk.Label
     manual_lower: tk.StringVar
     manual_upper: tk.StringVar
-    manual_lower_entry: ttk.Entry
-    manual_upper_entry: ttk.Entry
+    manual_lower_entry: tk.Entry
+    manual_upper_entry: tk.Entry
     line: object
     index: int
 
@@ -234,12 +235,14 @@ class PlotEditor(ttk.Frame):
 
         lower_caption = ttk.Label(manual_frame, text="X от:")
         lower_caption.grid(row=0, column=0, sticky="e", padx=(0, 4))
-        manual_lower_entry = ttk.Entry(manual_frame, width=12, textvariable=manual_lower)
+        manual_lower_entry = create_text(manual_frame, method="entry")
+        manual_lower_entry.configure(width=12, textvariable=manual_lower)
         manual_lower_entry.grid(row=0, column=1, sticky="ew")
 
         upper_caption = ttk.Label(manual_frame, text="X до:")
         upper_caption.grid(row=1, column=0, sticky="e", padx=(0, 4), pady=(4, 0))
-        manual_upper_entry = ttk.Entry(manual_frame, width=12, textvariable=manual_upper)
+        manual_upper_entry = create_text(manual_frame, method="entry")
+        manual_upper_entry.configure(width=12, textvariable=manual_upper)
         manual_upper_entry.grid(row=1, column=1, sticky="ew", pady=(4, 0))
 
         manual_frame.columnconfigure(1, weight=1)
