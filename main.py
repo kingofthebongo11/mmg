@@ -349,6 +349,12 @@ class App:
             default=6.0,
             units=[("м", 1.0)],
         )
+        self.inputs["He"] = ParameterInput(
+            params_frame,
+            label="Глубина оттаивания He",
+            default=6.0,
+            units=[("м", 1.0)],
+        )
         self.inputs["F"] = ParameterInput(
             params_frame,
             label="Нагрузка F",
@@ -421,11 +427,17 @@ class App:
         ttk.Button(result_frame, text="Расчёт", command=self._calculate).grid(
             row=0, column=0, padx=(0, 12)
         )
-        ttk.Label(result_frame, text="Результат, м").grid(row=0, column=1)
-        self.result_var = tk.StringVar()
-        result_entry = create_text(result_frame, method="entry", state="readonly")
-        result_entry.configure(textvariable=self.result_var, width=20)
-        result_entry.grid(row=0, column=2)
+        ttk.Label(result_frame, text="Результат Hc, м").grid(row=0, column=1)
+        self.result_hc_var = tk.StringVar()
+        result_hc_entry = create_text(result_frame, method="entry", state="readonly")
+        result_hc_entry.configure(textvariable=self.result_hc_var, width=16)
+        result_hc_entry.grid(row=0, column=2)
+
+        ttk.Label(result_frame, text="Результат He, м").grid(row=1, column=1, pady=(4, 0))
+        self.result_he_var = tk.StringVar()
+        result_he_entry = create_text(result_frame, method="entry", state="readonly")
+        result_he_entry.configure(textvariable=self.result_he_var, width=16)
+        result_he_entry.grid(row=1, column=2, pady=(4, 0))
 
         main_frame.grid_rowconfigure(2, weight=1)
         main_frame.grid_columnconfigure(0, weight=1)
@@ -523,7 +535,7 @@ class App:
                 soil = self.soil_manager.get(soil_code)
                 borehole.add(soil, thickness)
 
-            result = disp_calculation(
+            result_hc = disp_calculation(
                 borehole=borehole,
                 Hc=params["Hc"],
                 H=params["H"],
@@ -531,7 +543,17 @@ class App:
                 a=params["a"],
                 b=params["b"],
             )
-            self.result_var.set(f"{result:.6f}")
+            self.result_hc_var.set(f"{result_hc:.6f}")
+
+            result_he = disp_calculation(
+                borehole=borehole,
+                Hc=params["He"],
+                H=params["H"],
+                F=params["F"],
+                a=params["a"],
+                b=params["b"],
+            )
+            self.result_he_var.set(f"{result_he:.6f}")
         except Exception as exc:
             show_error("Ошибка", str(exc))
 
