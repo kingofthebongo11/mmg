@@ -268,8 +268,10 @@ class SoilDialog:
 
         self._refresh_tree()
 
-    def _parse_float(self, value: str, *, allow_none: bool = False) -> float | None:
-        value = value.strip()
+    def _parse_float(self, value: tk.Variable | str, *, allow_none: bool = False) -> float | None:
+        if isinstance(value, tk.Variable):
+            value = value.get()
+        value = str(value).strip()
         if not value:
             if allow_none:
                 return None
