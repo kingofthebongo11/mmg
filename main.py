@@ -186,7 +186,9 @@ class SoilDialog:
 
         self.var_code = tk.StringVar()
         self.var_name = tk.StringVar()
-        self.var_soil_type = tk.StringVar(value=list(SoilType)[0].name)
+        self._soil_type_labels: Dict[str, SoilType] = {st.value: st for st in SoilType}
+        first_soil_type = next(iter(self._soil_type_labels))
+        self.var_soil_type = tk.StringVar(value=first_soil_type)
         self.var_rho = tk.StringVar()
         self.var_Ath = tk.StringVar()
         self.var_mth = tk.StringVar()
@@ -204,7 +206,7 @@ class SoilDialog:
         ttk.Label(form, text="Тип грунта").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
         self.cmb_soil_type = ttk.Combobox(
             form,
-            values=[st.name for st in SoilType],
+            values=list(self._soil_type_labels.keys()),
             textvariable=self.var_soil_type,
             state="readonly",
         )
@@ -272,11 +274,10 @@ class SoilDialog:
         mth = self._parse_float(self.var_mth, allow_none=True)
         if rho is None:
             raise AssertionError("rho не может быть None")
-        soil_type_name = self.var_soil_type.get()
-        try:
-            soil_type = SoilType[soil_type_name]
-        except KeyError:
-            show_error("Ошибка", f"Неизвестный тип грунта: {soil_type_name}")
+        soil_type_label = self.var_soil_type.get()
+        soil_type = self._soil_type_labels.get(soil_type_label)
+        if soil_type is None:
+            show_error("Ошибка", f"Неизвестный тип грунта: {soil_type_label}")
             return
         try:
             soil = PermafrostSoil(
@@ -317,7 +318,7 @@ class SoilDialog:
                 values=(
                     soil.code,
                     soil.name,
-                    soil.soil_type.name,
+                    soil.soil_type.value,
                     soil.rho,
                     soil.Ath if soil.Ath is not None else "",
                     soil.mth if soil.mth is not None else "",
