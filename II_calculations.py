@@ -89,8 +89,6 @@ def disp_sp(borehole: Borehole, F: float, a: float, b: float, Hc: float, H: floa
 
 
 def disp_calculation(borehole: Borehole, Hc: float,H: float,F: float, a: float, b: float) -> float:
-    if borehole.z_top != H:
-        Hc=Hc -(borehole.z_top-H)
     sth=disp_sth(borehole=borehole,Hc=Hc, H=H)
     sp=disp_sp(borehole=borehole, F=F, a=a, b=b,Hc=Hc,H=H)
     print(sth, sp)

@@ -346,7 +346,7 @@ class App:
         self.inputs["Hc"] = ParameterInput(
             params_frame,
             label="Глубина оттаивания Hc",
-            default=8.0,
+            default=6.0,
             units=[("м", 1.0)],
         )
         self.inputs["F"] = ParameterInput(
