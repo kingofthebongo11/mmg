@@ -81,6 +81,12 @@ class SoilManager:
         self._soils[soil.code] = soil
         self._notify()
 
+    def update(self, old_code: str, soil: PermafrostSoil) -> None:
+        if old_code != soil.code and old_code in self._soils:
+            del self._soils[old_code]
+        self._soils[soil.code] = soil
+        self._notify()
+
     def remove(self, code: str) -> None:
         if code in self._soils:
             del self._soils[code]
@@ -246,8 +252,15 @@ class SoilDialog:
             self.tree.column(col, width=100, anchor="center")
         self.tree.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="nsew")
 
-        ttk.Button(self.window, text="Удалить выбранный", command=self._remove_selected).grid(
-            row=2, column=0, padx=12, pady=(0, 12), sticky="e"
+        self.tree.bind("<<TreeviewSelect>>", self._on_select)
+
+        buttons = ttk.Frame(self.window)
+        buttons.grid(row=2, column=0, padx=12, pady=(0, 12), sticky="e")
+        ttk.Button(buttons, text="Обновить выбранный", command=self._update_selected).grid(
+            row=0, column=0, padx=(0, 8)
+        )
+        ttk.Button(buttons, text="Удалить выбранный", command=self._remove_selected).grid(
+            row=0, column=1
         )
 
         self.window.grid_rowconfigure(1, weight=1)
@@ -266,7 +279,7 @@ class SoilDialog:
         except ValueError as exc:
             raise ValueError(f"Не удалось преобразовать '{value}' в число") from exc
 
-    def _add_soil(self) -> None:
+    def _build_soil_from_form(self) -> PermafrostSoil | None:
         code = self.var_code.get().strip()
         name = self.var_name.get().strip()
         rho = self._parse_float(self.var_rho)
@@ -278,9 +291,9 @@ class SoilDialog:
         soil_type = self._soil_type_labels.get(soil_type_label)
         if soil_type is None:
             show_error("Ошибка", f"Неизвестный тип грунта: {soil_type_label}")
-            return
+            return None
         try:
-            soil = PermafrostSoil(
+            return PermafrostSoil(
                 code=code,
                 name=name,
                 soil_type=soil_type,
@@ -290,14 +303,59 @@ class SoilDialog:
             )
         except Exception as exc:
             show_error("Ошибка", str(exc))
-            return
-        self._manager.add(soil)
-        self._refresh_tree()
+            return None
+
+    def _reset_form(self) -> None:
         self.var_code.set("")
         self.var_name.set("")
         self.var_rho.set("")
         self.var_Ath.set("")
         self.var_mth.set("")
+        if self._soil_type_labels:
+            self.var_soil_type.set(next(iter(self._soil_type_labels)))
+
+    def _add_soil(self) -> None:
+        soil = self._build_soil_from_form()
+        if soil is None:
+            return
+        self._manager.add(soil)
+        self._refresh_tree(select_code=soil.code)
+        self._reset_form()
+
+    def _update_selected(self) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            show_error("Ошибка", "Не выбран грунт для обновления")
+            return
+        soil = self._build_soil_from_form()
+        if soil is None:
+            return
+        item_id = selection[0]
+        old_code = self.tree.set(item_id, "code")
+        self._manager.update(old_code, soil)
+        self._refresh_tree(select_code=soil.code)
+
+    def _on_select(self, event: object | None = None) -> None:
+        item_id = self._get_selected_item()
+        if not item_id:
+            return
+        self._fill_form_from_item(item_id)
+
+    def _get_selected_item(self) -> str | None:
+        selection = self.tree.selection()
+        if not selection:
+            return None
+        return selection[0]
+
+    def _fill_form_from_item(self, item_id: str) -> None:
+        self.var_code.set(self.tree.set(item_id, "code"))
+        self.var_name.set(self.tree.set(item_id, "name"))
+        soil_type = self.tree.set(item_id, "type")
+        if soil_type:
+            self.var_soil_type.set(soil_type)
+        self.var_rho.set(self.tree.set(item_id, "rho"))
+        self.var_Ath.set(self.tree.set(item_id, "Ath"))
+        self.var_mth.set(self.tree.set(item_id, "mth"))
 
     def _remove_selected(self) -> None:
         selection = self.tree.selection()
@@ -308,11 +366,11 @@ class SoilDialog:
         self._manager.remove(code)
         self._refresh_tree()
 
-    def _refresh_tree(self) -> None:
+    def _refresh_tree(self, *, select_code: str | None = None) -> None:
         for item in self.tree.get_children():
             self.tree.delete(item)
         for soil in self._manager.items():
-            self.tree.insert(
+            item_id = self.tree.insert(
                 "",
                 "end",
                 values=(
@@ -324,6 +382,9 @@ class SoilDialog:
                     soil.mth if soil.mth is not None else "",
                 ),
             )
+            if select_code and soil.code == select_code:
+                self.tree.selection_set(item_id)
+                self.tree.focus(item_id)
 
 
 class App:
