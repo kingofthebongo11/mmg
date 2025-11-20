@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 from typing import Callable, Dict, Iterable, List, Sequence, Tuple
 
 from borehole_class import Borehole
 from grunt_class import PermafrostSoil, SoilType
-from II_calculations import disp_calculation
-from widgets import create_text, show_error
+from II_calculations import calculate_settlement, disp_calculation
+from report_generator import build_docx_report
+from widgets import ask_save_file, create_text, show_error
 
 
 class ParameterInput:
@@ -502,6 +503,9 @@ class App:
         result_he_entry = create_text(result_frame, method="entry", state="readonly")
         result_he_entry.configure(textvariable=self.result_he_var, width=16)
         result_he_entry.grid(row=1, column=2, pady=(4, 0))
+        ttk.Button(result_frame, text="Отчёт", command=self._export_report).grid(
+            row=0, column=3, rowspan=2, padx=(12, 0)
+        )
 
         main_frame.grid_rowconfigure(2, weight=1)
         main_frame.grid_columnconfigure(0, weight=1)
@@ -582,23 +586,31 @@ class App:
         except ValueError as exc:
             raise ValueError("Ожидалось числовое значение") from exc
 
+    def _collect_inputs(self) -> Tuple[Dict[str, float], Borehole]:
+        params = {name: widget.get_value() for name, widget in self.inputs.items()}
+        borehole_code = self.var_borehole_code.get().strip()
+        if not borehole_code:
+            raise ValueError("Название скважины не задано")
+        borehole_top = self._parse_float(self.var_borehole_top.get())
+
+        if not self.layer_rows:
+            raise ValueError("Не задан ни один слой скважины")
+
+        borehole = Borehole(code=borehole_code, z_top=borehole_top)
+        for row in self.layer_rows:
+            soil_code, thickness = row.get_data()
+            soil = self.soil_manager.get(soil_code)
+            borehole.add(soil, thickness)
+        return params, borehole
+
     def _calculate(self) -> None:
         try:
-            params = {name: widget.get_value() for name, widget in self.inputs.items()}
-            borehole_code = self.var_borehole_code.get().strip()
-            if not borehole_code:
-                raise ValueError("Название скважины не задано")
-            borehole_top = self._parse_float(self.var_borehole_top.get())
+            params, borehole = self._collect_inputs()
+        except Exception as exc:
+            show_error("Ошибка", str(exc))
+            return
 
-            if not self.layer_rows:
-                raise ValueError("Не задан ни один слой скважины")
-
-            borehole = Borehole(code=borehole_code, z_top=borehole_top)
-            for row in self.layer_rows:
-                soil_code, thickness = row.get_data()
-                soil = self.soil_manager.get(soil_code)
-                borehole.add(soil, thickness)
-
+        try:
             result_hc = disp_calculation(
                 borehole=borehole,
                 Hc=params["Hc"],
@@ -620,6 +632,61 @@ class App:
             self.result_he_var.set(f"{result_he:.6f}")
         except Exception as exc:
             show_error("Ошибка", str(exc))
+
+    def _export_report(self) -> None:
+        try:
+            params, borehole = self._collect_inputs()
+        except Exception as exc:
+            show_error("Ошибка", str(exc))
+            return
+
+        path = ask_save_file(
+            defaultextension=".docx",
+            filetypes=[("Документ Word", "*.docx"), ("Все файлы", "*.*")],
+        )
+        if not path:
+            return
+
+        hc_result = calculate_settlement(
+            borehole=borehole,
+            Hc=params["Hc"],
+            H=params["H"],
+            F=params["F"],
+            a=params["a"],
+            b=params["b"],
+        )
+        he_result = calculate_settlement(
+            borehole=borehole,
+            Hc=params["He"],
+            H=params["H"],
+            F=params["F"],
+            a=params["a"],
+            b=params["b"],
+        )
+
+        layer_info = [
+            (
+                layer.soil.code,
+                layer.soil.name,
+                layer.soil.soil_type.value,
+                layer.soil.rho,
+                layer.soil.Ath,
+                layer.soil.mth,
+                layer.thickness,
+            )
+            for layer in borehole.layers
+        ]
+
+        build_docx_report(
+            path,
+            borehole_name=borehole.code,
+            borehole_top=borehole.z_top,
+            layers=layer_info,
+            params=params,
+            Hc_result=hc_result,
+            He_result=he_result,
+        )
+        messagebox.showinfo("Отчёт", f"Файл сохранён:\n{path}")
 
 
 def main() -> None:
