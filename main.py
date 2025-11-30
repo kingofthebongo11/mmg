@@ -390,6 +390,61 @@ class SoilDialog:
                 self.tree.focus(item_id)
 
 
+class ThawDepthDialog:
+    """Окно для расчёта глубины оттаивания."""
+
+    def __init__(self, parent: tk.Tk, on_apply: Callable[[str, str], None]) -> None:
+        self._on_apply = on_apply
+
+        self.window = tk.Toplevel(parent)
+        self.window.title("Расчёт глубины оттаивания")
+        self.window.grab_set()
+        self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
+
+        ttk.Label(
+            self.window,
+            text="Исходные данные будут добавлены позже",
+        ).grid(row=0, column=0, columnspan=2, padx=12, pady=(12, 4))
+
+        ttk.Button(self.window, text="Расчёт", command=self._calculate).grid(
+            row=1, column=0, columnspan=2, padx=12, pady=(0, 12)
+        )
+
+        ttk.Label(self.window, text="Глубина Hc, м").grid(
+            row=2, column=0, sticky="e", padx=(12, 8), pady=(0, 4)
+        )
+        self.var_hc = tk.StringVar()
+        hc_entry = create_text(self.window, method="entry", state="readonly")
+        hc_entry.configure(textvariable=self.var_hc, width=18)
+        hc_entry.grid(row=2, column=1, sticky="w", padx=(0, 12), pady=(0, 4))
+
+        ttk.Label(self.window, text="Глубина He, м").grid(
+            row=3, column=0, sticky="e", padx=(12, 8)
+        )
+        self.var_he = tk.StringVar()
+        he_entry = create_text(self.window, method="entry", state="readonly")
+        he_entry.configure(textvariable=self.var_he, width=18)
+        he_entry.grid(row=3, column=1, sticky="w", padx=(0, 12))
+
+        ttk.Button(self.window, text="Применить", command=self._apply).grid(
+            row=4, column=0, columnspan=2, pady=(8, 12)
+        )
+
+        self.window.grid_columnconfigure(1, weight=1)
+
+    def _calculate(self) -> None:
+        self.var_hc.set("1")
+        self.var_he.set("1")
+
+    def _apply(self) -> None:
+        self._on_apply(self.var_hc.get(), self.var_he.get())
+        self._handle_close()
+
+    def _handle_close(self) -> None:
+        self.window.grab_release()
+        self.window.destroy()
+
+
 class App:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -398,6 +453,7 @@ class App:
         self.soil_manager = SoilManager()
         self.soil_manager.add_listener(self._update_layer_choices)
         self.soil_dialog: SoilDialog | None = None
+        self.thaw_depth_dialog: ThawDepthDialog | None = None
 
         main_frame = ttk.Frame(root, padding=12)
         main_frame.grid(row=0, column=0, sticky="nsew")
@@ -446,6 +502,12 @@ class App:
         )
         for idx, widget in enumerate(self.inputs.values()):
             widget.grid(row=idx, column=0, pady=4, sticky="we")
+
+        ttk.Button(
+            params_frame,
+            text="Рассчитать глубину оттаивания",
+            command=self._open_thaw_depth_dialog,
+        ).grid(row=len(self.inputs), column=0, pady=(4, 0), sticky="w")
 
         borehole_frame = ttk.LabelFrame(main_frame, text="Скважина")
         borehole_frame.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
@@ -574,6 +636,27 @@ class App:
             self.soil_dialog.window.lift()
             return
         self.soil_dialog = SoilDialog(self.root, self.soil_manager)
+
+    def _open_thaw_depth_dialog(self) -> None:
+        if self.thaw_depth_dialog is not None and tk.Toplevel.winfo_exists(
+            self.thaw_depth_dialog.window
+        ):
+            self.thaw_depth_dialog.window.lift()
+            return
+
+        self.thaw_depth_dialog = ThawDepthDialog(
+            self.root, on_apply=self._on_thaw_depth_apply
+        )
+        self.thaw_depth_dialog.window.bind(
+            "<Destroy>", lambda event: self._on_thaw_depth_dialog_close()
+        )
+
+    def _on_thaw_depth_apply(self, hc_value: str, he_value: str) -> None:
+        self.inputs["Hc"].var.set(hc_value)
+        self.inputs["He"].var.set(he_value)
+
+    def _on_thaw_depth_dialog_close(self) -> None:
+        self.thaw_depth_dialog = None
 
     def _parse_float(self, value: str, *, allow_empty: bool = False) -> float:
         value = value.strip()
