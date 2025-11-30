@@ -8,6 +8,11 @@ from typing import Iterable, Sequence
 from xml.sax.saxutils import escape
 
 from II_calculations import SettlementBreakdown, LoadSettlementStep, ThawSettlementStep
+from kc_table import kc_from_psi_alpha_r
+from ke_lookup import ke_from_psi_alpha
+from kn_lookup import kn_from_psi_beta
+from ksi_e_lookup import ksi_e
+from ksic_table import ksic
 
 
 CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -147,6 +152,15 @@ def build_thaw_depth_report(
 ) -> Path:
     """Формирует отчёт по расчёту глубины оттаивания."""
 
+    psi_clamped = min(max(psi, 0.0), 3.5)
+    clamping_note = (
+        f"Исходное значение ψ={_format_value(psi, 3)} превышает 3.5. "
+        f"Для поиска по таблицам берём граничное значение ψ={_format_value(psi_clamped, 3)}, "
+        "дальнейшая интерполяция автоматически прижимает аргумент к верхней границе сетки."
+    )
+    if psi == psi_clamped:
+        clamping_note = "ψ находится в допустимом диапазоне 0…3.5, корректировка не требуется."
+
     paragraphs: list[str] = []
     paragraphs.append(_p("Отчёт по расчёту глубины оттаивания", style="Heading1"))
     paragraphs.append(_p(f"Дата: {_dt.datetime.now().strftime('%d.%m.%Y %H:%M')}"))
@@ -179,12 +193,50 @@ def build_thaw_depth_report(
         )
     )
 
-    paragraphs.append(_p("Результаты промежуточных вычислений:"))
+    paragraphs.append(_p("Промежуточные вычисления параметров:"))
     paragraphs.append(
         _p(
-            f"alpha_r={_format_value(alpha_r, 6)}; "
-            f"beta={_format_value(beta, 6)}; "
-            f"psi={_format_value(psi, 6)}"
+            "α_r = λ_th · R0 / B = "
+            f"{_format_value(parameters['lambdath'], 3)} · {_format_value(parameters['R0'], 3)} / {_format_value(B, 3)} "
+            f"= {_format_value(alpha_r, 6)}"
+        )
+    )
+    paragraphs.append(
+        _p(
+            "β = −λ_f · (T0 − Tbf) / (λ_th · (Tin − Tbf)) = "
+            f"−{_format_value(parameters['lambdaf'], 3)} · ({_format_value(parameters['T0'], 3)} − {_format_value(parameters['Tbf'], 3)}) / "
+            f"({_format_value(parameters['lambdath'], 3)} · ({_format_value(parameters['Tin'], 3)} − {_format_value(parameters['Tbf'], 3)})) "
+            f"= {_format_value(beta, 6)}"
+        )
+    )
+    paragraphs.append(
+        _p(
+            "ψ = λ_th · Tin · t / (Lv · B²) = "
+            f"{_format_value(parameters['lambdath'], 3)} · {_format_value(parameters['Tin'], 3)} · {_format_value(parameters['t'], 3)} / "
+            f"({_format_value(parameters['Lv'], 3)} · {_format_value(B, 3)}²) = {_format_value(psi, 6)}"
+        )
+    )
+    paragraphs.append(_p(clamping_note))
+
+    kn_value = kn_from_psi_beta(psi, beta, shape=foundation_shape, L=L, B=B)
+    xi_c = ksic(psi, beta)
+    kc_value = kc_from_psi_alpha_r(psi, alpha_r)
+    xi_e = ksi_e(psi, beta)
+    ke_value = ke_from_psi_alpha(psi, alpha_r)
+    correction = 0.18 * beta * math.sqrt(psi)
+
+    paragraphs.append(
+        _p(
+            "Расчёт глубины в центре: Hc = k_n · (ξ_c − k_c) · B = "
+            f"{_format_value(kn_value, 6)} · ({_format_value(xi_c, 6)} − {_format_value(kc_value, 6)}) · {_format_value(B, 3)} "
+            f"= {_format_value(hc, 6)} м"
+        )
+    )
+    paragraphs.append(
+        _p(
+            "Расчёт глубины у края: He = k_n · (ξ_e − k_e − 0.18·β·√ψ) · B = "
+            f"{_format_value(kn_value, 6)} · ({_format_value(xi_e, 6)} − {_format_value(ke_value, 6)} − "
+            f"0.18·{_format_value(beta, 6)}·√{_format_value(psi, 6)}) · {_format_value(B, 3)} = {_format_value(he, 6)} м"
         )
     )
 
