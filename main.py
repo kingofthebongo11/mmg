@@ -686,6 +686,24 @@ class App:
             borehole.add(soil, thickness)
         return params, borehole
 
+    def _apply_fill_adjustments(
+        self, params: Dict[str, float], borehole: Borehole
+    ) -> tuple[Dict[str, float], float]:
+        """Корректировка нагрузки и глубины оттаивания с учётом насыпи."""
+
+        adjusted = dict(params)
+        fill_height = max(0.0, params["H"] - borehole.z_top)
+        if fill_height <= 0:
+            return adjusted, fill_height
+
+        fill_gamma_kNm3 = 1800.0 * 9.81 / 1000.0
+        additional_force = fill_gamma_kNm3 * fill_height * params["a"] * params["b"]
+
+        adjusted["F"] = params["F"] + additional_force
+        adjusted["Hc"] = max(0.0, params["Hc"] - fill_height)
+        adjusted["He"] = max(0.0, params["He"] - fill_height)
+        return adjusted, fill_height
+
     def _calculate(self) -> None:
         try:
             params, borehole = self._collect_inputs()
@@ -694,23 +712,25 @@ class App:
             return
 
         try:
+            adjusted_params, _ = self._apply_fill_adjustments(params, borehole)
+
             result_hc = disp_calculation(
                 borehole=borehole,
-                Hc=params["Hc"],
-                H=params["H"],
-                F=params["F"],
-                a=params["a"],
-                b=params["b"],
+                Hc=adjusted_params["Hc"],
+                H=adjusted_params["H"],
+                F=adjusted_params["F"],
+                a=adjusted_params["a"],
+                b=adjusted_params["b"],
             )
             self.result_hc_var.set(f"{result_hc:.6f}")
 
             result_he = disp_calculation(
                 borehole=borehole,
-                Hc=params["He"],
-                H=params["H"],
-                F=params["F"],
-                a=params["a"],
-                b=params["b"],
+                Hc=adjusted_params["He"],
+                H=adjusted_params["H"],
+                F=adjusted_params["F"],
+                a=adjusted_params["a"],
+                b=adjusted_params["b"],
             )
             self.result_he_var.set(f"{result_he:.6f}")
         except Exception as exc:
@@ -730,21 +750,23 @@ class App:
         if not path:
             return
 
+        adjusted_params, _ = self._apply_fill_adjustments(params, borehole)
+
         hc_result = calculate_settlement(
             borehole=borehole,
-            Hc=params["Hc"],
-            H=params["H"],
-            F=params["F"],
-            a=params["a"],
-            b=params["b"],
+            Hc=adjusted_params["Hc"],
+            H=adjusted_params["H"],
+            F=adjusted_params["F"],
+            a=adjusted_params["a"],
+            b=adjusted_params["b"],
         )
         he_result = calculate_settlement(
             borehole=borehole,
-            Hc=params["He"],
-            H=params["H"],
-            F=params["F"],
-            a=params["a"],
-            b=params["b"],
+            Hc=adjusted_params["He"],
+            H=adjusted_params["H"],
+            F=adjusted_params["F"],
+            a=adjusted_params["a"],
+            b=adjusted_params["b"],
         )
 
         layer_info = [
@@ -765,7 +787,7 @@ class App:
             borehole_name=borehole.code,
             borehole_top=borehole.z_top,
             layers=layer_info,
-            params=params,
+            params=adjusted_params,
             Hc_result=hc_result,
             He_result=he_result,
         )
