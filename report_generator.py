@@ -10,7 +10,7 @@ from xml.sax.saxutils import escape
 from II_calculations import SettlementBreakdown, LoadSettlementStep, ThawSettlementStep
 from kc_table import kc_from_psi_alpha_r
 from ke_lookup import ke_from_psi_alpha
-from kn_lookup import kn_from_psi_beta
+from kn_lookup import _normalize_shape, kn_from_psi_beta
 from ksi_e_lookup import ksi_e
 from ksic_table import ksic
 
@@ -226,12 +226,25 @@ def build_thaw_depth_report(
     ke_value = ke_from_psi_alpha(psi_for_tables, alpha_r)
     correction = 0.18 * beta * math.sqrt(psi_for_tables)
 
-    psi_kn_note = (
-        "Коэффициент k_n берётся по таблицам: для круглого фундамента используется таблица "
-        "круглой формы, для прямоугольного — таблица с отношением L/B, ближайшим к фактическому. "
-        "При интерполяции значения ψ и β прижимаются к границам табличных сеток (0…2.0 для ψ, "
-        "0…2.0 для β)."
-    )
+    normalized_shape = _normalize_shape(foundation_shape)
+    if normalized_shape == "round":
+        psi_kn_note = (
+            "Коэффициент k_n="
+            f"{_format_value(kn_value, 6)} получен из раздела таблицы К.1 для круглого фундамента: "
+            "использованы ψ="
+            f"{_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)}, поиск выполнен "
+            "с интерполяцией по обоим параметрам и прижиманием аргументов к диапазону 0…2."
+        )
+    else:
+        ratio = float(L) / float(B)
+        nearest_ratio = 1.0 if abs(ratio - 1.0) <= abs(ratio - 2.0) else 2.0
+        psi_kn_note = (
+            "Коэффициент k_n="
+            f"{_format_value(kn_value, 6)} получен из раздела таблицы К.1 для прямоугольного "
+            f"фундамента: фактическое отношение L/B={_format_value(ratio, 3)}, выбрана часть таблицы "
+            f"с L/B={nearest_ratio:.1f}. Значение определено по ψ={_format_value(psi_for_tables, 3)} "
+            f"и β={_format_value(beta, 3)} с интерполяцией и прижиманием аргументов к диапазону 0…2."
+        )
     paragraphs.append(_p(psi_kn_note))
 
     paragraphs.append(
