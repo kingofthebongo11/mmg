@@ -227,6 +227,31 @@ def build_thaw_depth_report(
 
     paragraphs.append(
         _p(
+            f"По таблице k_c(ψ, α_r) при ψ={_format_value(psi, 3)} и α_r={_format_value(alpha_r, 3)} "
+            f"принято k_c={_format_value(kc_value, 6)}"
+        )
+    )
+    paragraphs.append(
+        _p(
+            f"По таблице k_e(ψ, α_r) при ψ={_format_value(psi, 3)} и α_r={_format_value(alpha_r, 3)} "
+            f"принято k_e={_format_value(ke_value, 6)}"
+        )
+    )
+    paragraphs.append(
+        _p(
+            f"По таблице ξ_c(ψ, β) при ψ={_format_value(psi, 3)} и β={_format_value(beta, 3)} "
+            f"принято ξ_c={_format_value(xi_c, 6)}"
+        )
+    )
+    paragraphs.append(
+        _p(
+            f"По таблице ξ_e(ψ, β) при ψ={_format_value(psi, 3)} и β={_format_value(beta, 3)} "
+            f"принято ξ_e={_format_value(xi_e, 6)}"
+        )
+    )
+
+    paragraphs.append(
+        _p(
             "Расчёт глубины в центре: Hc = k_n · (ξ_c − k_c) · B = "
             f"{_format_value(kn_value, 6)} · ({_format_value(xi_c, 6)} − {_format_value(kc_value, 6)}) · {_format_value(B, 3)} "
             f"= {_format_value(hc, 6)} м"
