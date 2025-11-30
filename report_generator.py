@@ -151,7 +151,7 @@ def build_docx_report(
         _p(
             "Исходные данные: H="
             f"{_format_value(params['H'],3)} м; F={_format_value(params['F'],3)} кН; "
-            f"a={_format_value(params['a'],3)} м; b={_format_value(params['b'],3)} м; "
+            f"L={_format_value(params['L'],3)} м; B={_format_value(params['B'],3)} м; "
             f"Hc={_format_value(params['Hc'],3)} м; He={_format_value(params['He'],3)} м"
         )
     )

@@ -393,7 +393,15 @@ class SoilDialog:
 class ThawDepthDialog:
     """Окно для расчёта глубины оттаивания."""
 
-    def __init__(self, parent: tk.Tk, on_apply: Callable[[str, str], None]) -> None:
+    def __init__(
+        self,
+        parent: tk.Tk,
+        on_apply: Callable[[str, str], None],
+        *,
+        foundation_shape: str,
+        default_L: str,
+        default_B: str,
+    ) -> None:
         self._on_apply = on_apply
 
         self.window = tk.Toplevel(parent)
@@ -401,10 +409,34 @@ class ThawDepthDialog:
         self.window.grab_set()
         self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
 
-        ttk.Label(
-            self.window,
-            text="Исходные данные будут добавлены позже",
-        ).grid(row=0, column=0, columnspan=2, padx=12, pady=(12, 4))
+        inputs_frame = ttk.LabelFrame(self.window, text="Исходные данные")
+        inputs_frame.grid(row=0, column=0, columnspan=2, padx=12, pady=(12, 8), sticky="we")
+
+        ttk.Label(inputs_frame, text="Форма фундамента").grid(row=0, column=0, sticky="w")
+        self.var_shape = tk.StringVar(value=foundation_shape)
+        self.cmb_shape = ttk.Combobox(
+            inputs_frame,
+            values=[foundation_shape],
+            textvariable=self.var_shape,
+            state="readonly",
+            width=18,
+        )
+        self.cmb_shape.grid(row=0, column=1, sticky="we", padx=(8, 0))
+        self.cmb_shape.current(0)
+
+        ttk.Label(inputs_frame, text="Размер L, м").grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self.var_L = tk.StringVar(value=default_L)
+        entry_L = create_text(inputs_frame, method="entry")
+        entry_L.configure(textvariable=self.var_L)
+        entry_L.grid(row=1, column=1, sticky="we", padx=(8, 0), pady=(4, 0))
+
+        ttk.Label(inputs_frame, text="Размер B, м").grid(row=2, column=0, sticky="w", pady=(4, 0))
+        self.var_B = tk.StringVar(value=default_B)
+        entry_B = create_text(inputs_frame, method="entry")
+        entry_B.configure(textvariable=self.var_B)
+        entry_B.grid(row=2, column=1, sticky="we", padx=(8, 0), pady=(4, 0))
+
+        inputs_frame.grid_columnconfigure(1, weight=1)
 
         ttk.Button(self.window, text="Расчёт", command=self._calculate).grid(
             row=1, column=0, columnspan=2, padx=12, pady=(0, 12)
@@ -482,15 +514,15 @@ class App:
             default=6821.0,
             units=[("кН", 1.0)],
         )
-        self.inputs["a"] = ParameterInput(
+        self.inputs["L"] = ParameterInput(
             params_frame,
-            label="Размер a",
+            label="Размер L",
             default=10.0,
             units=[("м", 1.0)],
         )
-        self.inputs["b"] = ParameterInput(
+        self.inputs["B"] = ParameterInput(
             params_frame,
-            label="Размер b",
+            label="Размер B",
             default=1.9,
             units=[("м", 1.0)],
         )
@@ -645,7 +677,11 @@ class App:
             return
 
         self.thaw_depth_dialog = ThawDepthDialog(
-            self.root, on_apply=self._on_thaw_depth_apply
+            self.root,
+            on_apply=self._on_thaw_depth_apply,
+            foundation_shape="Прямоугольная",
+            default_L=self.inputs["L"].var.get(),
+            default_B=self.inputs["B"].var.get(),
         )
         self.thaw_depth_dialog.window.bind(
             "<Destroy>", lambda event: self._on_thaw_depth_dialog_close()
@@ -697,7 +733,7 @@ class App:
             return adjusted, fill_height
 
         fill_gamma_kNm3 = 1800.0 * 9.81 / 1000.0
-        additional_force = fill_gamma_kNm3 * fill_height * params["a"] * params["b"]
+        additional_force = fill_gamma_kNm3 * fill_height * params["L"] * params["B"]
 
         adjusted["F"] = params["F"] + additional_force
         adjusted["Hc"] = max(0.0, params["Hc"] - fill_height)
@@ -719,8 +755,8 @@ class App:
                 Hc=adjusted_params["Hc"],
                 H=adjusted_params["H"],
                 F=adjusted_params["F"],
-                a=adjusted_params["a"],
-                b=adjusted_params["b"],
+                a=adjusted_params["L"],
+                b=adjusted_params["B"],
             )
             self.result_hc_var.set(f"{result_hc:.6f}")
 
@@ -729,8 +765,8 @@ class App:
                 Hc=adjusted_params["He"],
                 H=adjusted_params["H"],
                 F=adjusted_params["F"],
-                a=adjusted_params["a"],
-                b=adjusted_params["b"],
+                a=adjusted_params["L"],
+                b=adjusted_params["B"],
             )
             self.result_he_var.set(f"{result_he:.6f}")
         except Exception as exc:
@@ -757,16 +793,16 @@ class App:
             Hc=adjusted_params["Hc"],
             H=adjusted_params["H"],
             F=adjusted_params["F"],
-            a=adjusted_params["a"],
-            b=adjusted_params["b"],
+            a=adjusted_params["L"],
+            b=adjusted_params["B"],
         )
         he_result = calculate_settlement(
             borehole=borehole,
             Hc=adjusted_params["He"],
             H=adjusted_params["H"],
             F=adjusted_params["F"],
-            a=adjusted_params["a"],
-            b=adjusted_params["b"],
+            a=adjusted_params["L"],
+            b=adjusted_params["B"],
         )
 
         layer_info = [
