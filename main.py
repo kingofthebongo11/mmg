@@ -7,7 +7,7 @@ from typing import Callable, Dict, Iterable, List, Sequence, Tuple
 from borehole_class import Borehole
 from grunt_class import PermafrostSoil, SoilType
 from II_calculations import calculate_settlement, disp_calculation
-from report_generator import build_docx_report
+from report_generator import build_docx_report, build_thaw_depth_report
 from thaw_parameters import (
     calculate_alpha_r,
     calculate_beta,
@@ -518,56 +518,118 @@ class ThawDepthDialog:
         he_entry.configure(textvariable=self.var_he, width=18)
         he_entry.grid(row=3, column=1, sticky="w", padx=(0, 12))
 
+        ttk.Button(self.window, text="Отчёт", command=self._export_report).grid(
+            row=4, column=0, padx=(12, 6), pady=(8, 12), sticky="we"
+        )
         ttk.Button(self.window, text="Применить", command=self._apply).grid(
-            row=4, column=0, columnspan=2, pady=(8, 12)
+            row=4, column=1, padx=(6, 12), pady=(8, 12), sticky="we"
         )
 
+        self.window.grid_columnconfigure(0, weight=1)
         self.window.grid_columnconfigure(1, weight=1)
 
     def _calculate(self) -> None:
         try:
-            L = self._parse_float(self.var_L.get(), "L")
-            B = self._parse_float(self.var_B.get(), "B")
-            lambdath = self.param_inputs["lambdath"].get_value()
-            lambdaf = self.param_inputs["lambdaf"].get_value()
-            R0 = self.param_inputs["R0"].get_value()
-            T0 = self.param_inputs["T0"].get_value()
-            Tbf = self.param_inputs["Tbf"].get_value()
-            Tin = self.param_inputs["Tin"].get_value()
-            t = self.param_inputs["t"].get_value()
-            Lv = self.param_inputs["Lv"].get_value()
+            params = self._collect_inputs()
         except Exception as exc:
             messagebox.showerror("Ошибка", str(exc))
             return
 
         try:
-            alpha_r = calculate_alpha_r(lambdath=lambdath, R0=R0, B=B)
-            beta = calculate_beta(
-                lambdaf=lambdaf, T0=T0, Tbf=Tbf, lambdath=lambdath, Tin=Tin
-            )
-            psi = calculate_psi(lambdath=lambdath, Tin=Tin, t=t, Lv=Lv, B=B)
-            hc_value = calculate_hc(
-                alpha_r=alpha_r,
-                beta=beta,
-                psi=psi,
-                B=B,
-                shape=self.var_shape.get(),
-                L=L,
-            )
-            he_value = calculate_he(
-                alpha_r=alpha_r,
-                beta=beta,
-                psi=psi,
-                B=B,
-                shape=self.var_shape.get(),
-                L=L,
-            )
+            results = self._compute_depths(params)
         except ValueError as exc:
             messagebox.showerror("Ошибка", str(exc))
             return
 
-        self.var_hc.set(f"{hc_value:.6g}")
-        self.var_he.set(f"{he_value:.6g}")
+        self.var_hc.set(f"{results['hc']:.6g}")
+        self.var_he.set(f"{results['he']:.6g}")
+
+    def _collect_inputs(self) -> Dict[str, float]:
+        L = self._parse_float(self.var_L.get(), "L")
+        B = self._parse_float(self.var_B.get(), "B")
+        return {
+            "L": L,
+            "B": B,
+            "lambdath": self.param_inputs["lambdath"].get_value(),
+            "lambdaf": self.param_inputs["lambdaf"].get_value(),
+            "R0": self.param_inputs["R0"].get_value(),
+            "T0": self.param_inputs["T0"].get_value(),
+            "Tbf": self.param_inputs["Tbf"].get_value(),
+            "Tin": self.param_inputs["Tin"].get_value(),
+            "t": self.param_inputs["t"].get_value(),
+            "Lv": self.param_inputs["Lv"].get_value(),
+        }
+
+    def _compute_depths(self, params: Dict[str, float]) -> Dict[str, float]:
+        alpha_r = calculate_alpha_r(
+            lambdath=params["lambdath"], R0=params["R0"], B=params["B"]
+        )
+        beta = calculate_beta(
+            lambdaf=params["lambdaf"],
+            T0=params["T0"],
+            Tbf=params["Tbf"],
+            lambdath=params["lambdath"],
+            Tin=params["Tin"],
+        )
+        psi = calculate_psi(
+            lambdath=params["lambdath"],
+            Tin=params["Tin"],
+            t=params["t"],
+            Lv=params["Lv"],
+            B=params["B"],
+        )
+        hc_value = calculate_hc(
+            alpha_r=alpha_r,
+            beta=beta,
+            psi=psi,
+            B=params["B"],
+            shape=self.var_shape.get(),
+            L=params["L"],
+        )
+        he_value = calculate_he(
+            alpha_r=alpha_r,
+            beta=beta,
+            psi=psi,
+            B=params["B"],
+            shape=self.var_shape.get(),
+            L=params["L"],
+        )
+        return {
+            "alpha_r": alpha_r,
+            "beta": beta,
+            "psi": psi,
+            "hc": hc_value,
+            "he": he_value,
+        }
+
+    def _export_report(self) -> None:
+        try:
+            params = self._collect_inputs()
+            results = self._compute_depths(params)
+        except Exception as exc:
+            messagebox.showerror("Ошибка", str(exc))
+            return
+
+        path = ask_save_file(
+            defaultextension=".docx",
+            filetypes=[("Документ Word", "*.docx"), ("Все файлы", "*.*")],
+        )
+        if not path:
+            return
+
+        build_thaw_depth_report(
+            path,
+            foundation_shape=self.var_shape.get(),
+            L=params["L"],
+            B=params["B"],
+            parameters=params,
+            alpha_r=results["alpha_r"],
+            beta=results["beta"],
+            psi=results["psi"],
+            hc=results["hc"],
+            he=results["he"],
+        )
+        messagebox.showinfo("Отчёт", f"Файл сохранён:\n{path}")
 
     def _parse_float(self, raw_value: str, name: str) -> float:
         value = raw_value.strip()

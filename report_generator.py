@@ -132,6 +132,82 @@ def _add_breakdown_paragraphs(paragraphs: list[str], breakdown: SettlementBreakd
     )
 
 
+def build_thaw_depth_report(
+    path: str | Path,
+    *,
+    foundation_shape: str,
+    L: float,
+    B: float,
+    parameters: dict[str, float],
+    alpha_r: float,
+    beta: float,
+    psi: float,
+    hc: float,
+    he: float,
+) -> Path:
+    """Формирует отчёт по расчёту глубины оттаивания."""
+
+    paragraphs: list[str] = []
+    paragraphs.append(_p("Отчёт по расчёту глубины оттаивания", style="Heading1"))
+    paragraphs.append(_p(f"Дата: {_dt.datetime.now().strftime('%d.%m.%Y %H:%M')}"))
+    paragraphs.append(
+        _p(
+            "Форма фундамента: "
+            f"{foundation_shape}; L={_format_value(L, 3)} м; B={_format_value(B, 3)} м"
+        )
+    )
+
+    paragraphs.append(_p("Исходные параметры:"))
+    paragraphs.append(
+        _p(
+            f"λth={_format_value(parameters['lambdath'], 6)} Вт/(м·°С); "
+            f"λf={_format_value(parameters['lambdaf'], 6)} Вт/(м·°С); "
+            f"R0={_format_value(parameters['R0'], 6)} м²·°С/Вт"
+        )
+    )
+    paragraphs.append(
+        _p(
+            f"T0={_format_value(parameters['T0'], 3)} °С; "
+            f"Tbf={_format_value(parameters['Tbf'], 3)} °С; "
+            f"Tin={_format_value(parameters['Tin'], 3)} °С"
+        )
+    )
+    paragraphs.append(
+        _p(
+            f"t={_format_value(parameters['t'], 3)} с; "
+            f"Lv={_format_value(parameters['Lv'], 3)} Дж/м³"
+        )
+    )
+
+    paragraphs.append(_p("Результаты промежуточных вычислений:"))
+    paragraphs.append(
+        _p(
+            f"alpha_r={_format_value(alpha_r, 6)}; "
+            f"beta={_format_value(beta, 6)}; "
+            f"psi={_format_value(psi, 6)}"
+        )
+    )
+
+    paragraphs.append(
+        _p(
+            f"Глубина оттаивания под центром Hc={_format_value(hc, 6)} м; "
+            f"глубина оттаивания под краем He={_format_value(he, 6)} м"
+        )
+    )
+
+    document_xml = _body(paragraphs)
+
+    path = Path(path)
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", CONTENT_TYPES)
+        zf.writestr("_rels/.rels", RELS)
+        zf.writestr("word/_rels/document.xml.rels", DOC_RELS)
+        zf.writestr("word/styles.xml", STYLES)
+        zf.writestr("word/document.xml", document_xml)
+
+    return path
+
+
 def build_docx_report(
     path: str | Path,
     *,
