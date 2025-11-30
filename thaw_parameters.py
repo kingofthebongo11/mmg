@@ -26,7 +26,7 @@ def calculate_beta(lambdaf: float, T0: float, Tbf: float, lambdath: float, Tin: 
     denominator = lambdath * (Tin - Tbf)
     if denominator == 0:
         raise ValueError("Знаменатель в формуле β не должен быть равен нулю")
-    return lambdaf * (T0 - Tbf) / denominator
+    return -1*lambdaf * (T0 - Tbf) / denominator
 
 
 def calculate_psi(lambdath: float, Tin: float, t: float, Lv: float, B: float) -> float:
