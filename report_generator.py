@@ -153,9 +153,10 @@ def build_thaw_depth_report(
     """Формирует отчёт по расчёту глубины оттаивания."""
 
     psi_clamped = min(max(psi, 0.0), 3.5)
+    psi_for_tables = psi_clamped
     clamping_note = (
         f"Исходное значение ψ={_format_value(psi, 3)} превышает 3.5. "
-        f"Для поиска по таблицам берём граничное значение ψ={_format_value(psi_clamped, 3)}, "
+        f"Для поиска по таблицам берём граничное значение ψ={_format_value(psi_for_tables, 3)}, "
         "дальнейшая интерполяция автоматически прижимает аргумент к верхней границе сетки."
     )
     if psi == psi_clamped:
@@ -218,34 +219,42 @@ def build_thaw_depth_report(
     )
     paragraphs.append(_p(clamping_note))
 
-    kn_value = kn_from_psi_beta(psi, beta, shape=foundation_shape, L=L, B=B)
-    xi_c = ksic(psi, beta)
-    kc_value = kc_from_psi_alpha_r(psi, alpha_r)
-    xi_e = ksi_e(psi, beta)
-    ke_value = ke_from_psi_alpha(psi, alpha_r)
-    correction = 0.18 * beta * math.sqrt(psi)
+    kn_value = kn_from_psi_beta(psi_for_tables, beta, shape=foundation_shape, L=L, B=B)
+    xi_c = ksic(psi_for_tables, beta)
+    kc_value = kc_from_psi_alpha_r(psi_for_tables, alpha_r)
+    xi_e = ksi_e(psi_for_tables, beta)
+    ke_value = ke_from_psi_alpha(psi_for_tables, alpha_r)
+    correction = 0.18 * beta * math.sqrt(psi_for_tables)
+
+    psi_kn_note = (
+        "Коэффициент k_n берётся по таблицам: для круглого фундамента используется таблица "
+        "круглой формы, для прямоугольного — таблица с отношением L/B, ближайшим к фактическому. "
+        "При интерполяции значения ψ и β прижимаются к границам табличных сеток (0…2.0 для ψ, "
+        "0…2.0 для β)."
+    )
+    paragraphs.append(_p(psi_kn_note))
 
     paragraphs.append(
         _p(
-            f"По таблице k_c(ψ, α_r) при ψ={_format_value(psi, 3)} и α_r={_format_value(alpha_r, 3)} "
+            f"По таблице k_c(ψ, α_r) при ψ={_format_value(psi_for_tables, 3)} и α_r={_format_value(alpha_r, 3)} "
             f"принято k_c={_format_value(kc_value, 6)}"
         )
     )
     paragraphs.append(
         _p(
-            f"По таблице k_e(ψ, α_r) при ψ={_format_value(psi, 3)} и α_r={_format_value(alpha_r, 3)} "
+            f"По таблице k_e(ψ, α_r) при ψ={_format_value(psi_for_tables, 3)} и α_r={_format_value(alpha_r, 3)} "
             f"принято k_e={_format_value(ke_value, 6)}"
         )
     )
     paragraphs.append(
         _p(
-            f"По таблице ξ_c(ψ, β) при ψ={_format_value(psi, 3)} и β={_format_value(beta, 3)} "
+            f"По таблице ξ_c(ψ, β) при ψ={_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)} "
             f"принято ξ_c={_format_value(xi_c, 6)}"
         )
     )
     paragraphs.append(
         _p(
-            f"По таблице ξ_e(ψ, β) при ψ={_format_value(psi, 3)} и β={_format_value(beta, 3)} "
+            f"По таблице ξ_e(ψ, β) при ψ={_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)} "
             f"принято ξ_e={_format_value(xi_e, 6)}"
         )
     )
