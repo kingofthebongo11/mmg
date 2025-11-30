@@ -8,6 +8,7 @@ from borehole_class import Borehole
 from grunt_class import PermafrostSoil, SoilType
 from II_calculations import calculate_settlement, disp_calculation
 from report_generator import build_docx_report
+from thaw_parameters import calculate_alpha_r, calculate_beta, calculate_psi
 from widgets import ask_save_file, create_text, show_error
 
 
@@ -436,6 +437,59 @@ class ThawDepthDialog:
         entry_B.configure(textvariable=self.var_B)
         entry_B.grid(row=2, column=1, sticky="we", padx=(8, 0), pady=(4, 0))
 
+        self.param_inputs: Dict[str, ParameterInput] = {}
+        self.param_inputs["lambdath"] = ParameterInput(
+            inputs_frame,
+            label="λth — теплопроводность талого грунта, Вт/(м·°С)",
+            default=0.7,
+            units=[("Вт/(м·°С)", 1.0)],
+        )
+        self.param_inputs["lambdaf"] = ParameterInput(
+            inputs_frame,
+            label="λf — теплопроводность мёрзлого грунта, Вт/(м·°С)",
+            default=0.26,
+            units=[("Вт/(м·°С)", 1.0)],
+        )
+        self.param_inputs["R0"] = ParameterInput(
+            inputs_frame,
+            label="R0 — сопротивление теплопередаче пола, м²·°С/Вт",
+            default=0.19518717,
+            units=[("м²·°С/Вт", 1.0)],
+        )
+        self.param_inputs["T0"] = ParameterInput(
+            inputs_frame,
+            label="T0 — среднегодовая температура многолетнемёрзлых грунтов, °С",
+            default=-1.5,
+            units=[("°С", 1.0)],
+        )
+        self.param_inputs["Tbf"] = ParameterInput(
+            inputs_frame,
+            label="Tbf — температура начала замерзания грунта, °С",
+            default=-0.15,
+            units=[("°С", 1.0)],
+        )
+        self.param_inputs["Tin"] = ParameterInput(
+            inputs_frame,
+            label="Tin — расчётная температура воздуха внутри сооружения, °С",
+            default=5.0,
+            units=[("°С", 1.0)],
+        )
+        self.param_inputs["t"] = ParameterInput(
+            inputs_frame,
+            label="t — длительность периода, с",
+            default=1577880000,
+            units=[("с", 1.0)],
+        )
+        self.param_inputs["Lv"] = ParameterInput(
+            inputs_frame,
+            label="Lv — теплота таяния мёрзлого грунта, Дж/м³",
+            default=81585505,
+            units=[("Дж/м³", 1.0)],
+        )
+
+        for idx, widget in enumerate(self.param_inputs.values(), start=3):
+            widget.grid(row=idx, column=0, pady=(4, 0), sticky="we")
+
         inputs_frame.grid_columnconfigure(1, weight=1)
 
         ttk.Button(self.window, text="Расчёт", command=self._calculate).grid(
@@ -458,15 +512,75 @@ class ThawDepthDialog:
         he_entry.configure(textvariable=self.var_he, width=18)
         he_entry.grid(row=3, column=1, sticky="w", padx=(0, 12))
 
+        results_frame = ttk.LabelFrame(self.window, text="Результаты")
+        results_frame.grid(row=4, column=0, columnspan=2, padx=12, pady=(8, 0), sticky="we")
+        results_frame.grid_columnconfigure(1, weight=1)
+
+        self.var_alpha_r = tk.StringVar()
+        ttk.Label(results_frame, text="αR").grid(row=0, column=0, sticky="w")
+        alpha_r_entry = create_text(results_frame, method="entry", state="readonly")
+        alpha_r_entry.configure(textvariable=self.var_alpha_r)
+        alpha_r_entry.grid(row=0, column=1, sticky="we", padx=(8, 0), pady=(4, 0))
+
+        self.var_beta = tk.StringVar()
+        ttk.Label(results_frame, text="β").grid(row=1, column=0, sticky="w")
+        beta_entry = create_text(results_frame, method="entry", state="readonly")
+        beta_entry.configure(textvariable=self.var_beta)
+        beta_entry.grid(row=1, column=1, sticky="we", padx=(8, 0), pady=(4, 0))
+
+        self.var_psi = tk.StringVar()
+        ttk.Label(results_frame, text="ψ").grid(row=2, column=0, sticky="w")
+        psi_entry = create_text(results_frame, method="entry", state="readonly")
+        psi_entry.configure(textvariable=self.var_psi)
+        psi_entry.grid(row=2, column=1, sticky="we", padx=(8, 0), pady=(4, 4))
+
         ttk.Button(self.window, text="Применить", command=self._apply).grid(
-            row=4, column=0, columnspan=2, pady=(8, 12)
+            row=5, column=0, columnspan=2, pady=(8, 12)
         )
 
         self.window.grid_columnconfigure(1, weight=1)
 
     def _calculate(self) -> None:
-        self.var_hc.set("1")
-        self.var_he.set("1")
+        try:
+            B = self._parse_float(self.var_B.get(), "B")
+            lambdath = self.param_inputs["lambdath"].get_value()
+            lambdaf = self.param_inputs["lambdaf"].get_value()
+            R0 = self.param_inputs["R0"].get_value()
+            T0 = self.param_inputs["T0"].get_value()
+            Tbf = self.param_inputs["Tbf"].get_value()
+            Tin = self.param_inputs["Tin"].get_value()
+            t = self.param_inputs["t"].get_value()
+            Lv = self.param_inputs["Lv"].get_value()
+        except Exception as exc:
+            messagebox.showerror("Ошибка", str(exc))
+            return
+
+        try:
+            alpha_r = calculate_alpha_r(lambdath=lambdath, R0=R0, B=B)
+            beta = calculate_beta(
+                lambdaf=lambdaf, T0=T0, Tbf=Tbf, lambdath=lambdath, Tin=Tin
+            )
+            psi = calculate_psi(lambdath=lambdath, Tin=Tin, t=t, Lv=Lv, B=B)
+        except ValueError as exc:
+            messagebox.showerror("Ошибка", str(exc))
+            return
+
+        self.var_alpha_r.set(f"{alpha_r:.6g}")
+        self.var_beta.set(f"{beta:.6g}")
+        self.var_psi.set(f"{psi:.6g}")
+
+        # Временные значения для полей глубины, пока алгоритм расчёта Hc/He не реализован
+        self.var_hc.set(self.var_hc.get() or "1")
+        self.var_he.set(self.var_he.get() or "1")
+
+    def _parse_float(self, raw_value: str, name: str) -> float:
+        value = raw_value.strip()
+        if not value:
+            raise ValueError(f"Не задано значение {name}")
+        try:
+            return float(value.replace(",", "."))
+        except ValueError as exc:
+            raise ValueError(f"Некорректное значение {name}") from exc
 
     def _apply(self) -> None:
         self._on_apply(self.var_hc.get(), self.var_he.get())
@@ -681,7 +795,7 @@ class App:
             on_apply=self._on_thaw_depth_apply,
             foundation_shape="Прямоугольная",
             default_L=self.inputs["L"].var.get(),
-            default_B=self.inputs["B"].var.get(),
+            default_B="3",
         )
         self.thaw_depth_dialog.window.bind(
             "<Destroy>", lambda event: self._on_thaw_depth_dialog_close()
