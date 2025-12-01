@@ -503,7 +503,7 @@ def build_thaw_depth_report(
     paragraphs.append(
         _p_runs(
             [
-                ("По таблице ", False, False),
+                ("По графикам ", False, False),
                 ("k", False, False),
                 ("e", False, True),
                 ("(ψ, α", False, False),
@@ -524,13 +524,13 @@ def build_thaw_depth_report(
     )
     paragraphs.append(
         _p(
-            f"По таблице ξ_c(ψ, β) при ψ={_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)} "
+            f"По графикам ξ_c(ψ, β) при ψ={_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)} "
             f"принято ξ_c={_format_value(xi_c, 6)}"
         )
     )
     paragraphs.append(
         _p(
-            f"По таблице ξ_e(ψ, β) при ψ={_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)} "
+            f"По графикам ξ_e(ψ, β) при ψ={_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)} "
             f"принято ξ_e={_format_value(xi_e, 6)}"
         )
     )
