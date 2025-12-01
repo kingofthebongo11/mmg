@@ -99,6 +99,22 @@ def _p(text: str, *, style: str | None = None) -> str:
     )
 
 
+def _run(text: str, *, italic: bool = False, subscript: bool = False) -> str:
+    rpr_parts: list[str] = []
+    if italic:
+        rpr_parts.append("<w:i/>")
+    if subscript:
+        rpr_parts.append('<w:vertAlign w:val="subscript"/>')
+    rpr = f"<w:rPr>{''.join(rpr_parts)}</w:rPr>" if rpr_parts else ""
+    return f"<w:r>{rpr}<w:t xml:space=\"preserve\">{escape(text)}</w:t></w:r>"
+
+
+def _p_runs(parts: Sequence[tuple[str, bool, bool]], *, style: str | None = None) -> str:
+    style_xml = f"<w:pPr><w:pStyle w:val=\"{style}\"/></w:pPr>" if style else ""
+    runs = "".join(_run(text, italic=italic, subscript=subscript) for text, italic, subscript in parts)
+    return f"<w:p>{style_xml}{runs}</w:p>"
+
+
 def _body(paragraphs: Sequence[str]) -> str:
     sect = (
         "<w:sectPr>"
@@ -138,15 +154,97 @@ def _render_load_step(step: LoadSettlementStep, *, H: float, depth: float) -> st
 
 def _add_breakdown_paragraphs(paragraphs: list[str], breakdown: SettlementBreakdown, *, H: float) -> None:
     paragraphs.append(_p(f"Расчёт для глубины оттаивания {breakdown.depth:.3f} м", style="Heading2"))
-    paragraphs.append(_p("Формула: S = S_th + S_p"))
     paragraphs.append(
-        _p(
-            "S_th = Σ h_i · (Ath_i + mth_i · σ̄_i); S_p = p0 · b · kh · Σ mth_i · kμi · (k_i,низ − k_i,верх)"
+        _p_runs(
+            [
+                ("Формула: ", False, False),
+                ("S", True, False),
+                (" = ", False, False),
+                ("S", True, False),
+                ("th", True, True),
+                (" + ", False, False),
+                ("S", True, False),
+                ("p", True, True),
+            ]
+        )
+    )
+    paragraphs.append(
+        _p_runs(
+            [
+                ("S", True, False),
+                ("th", True, True),
+                (" = Σ ", False, False),
+                ("h", True, False),
+                ("i", True, True),
+                (" · (", False, False),
+                ("A", True, False),
+                ("th", True, True),
+                ("i", True, True),
+                (" + ", False, False),
+                ("m", True, False),
+                ("th", True, True),
+                ("i", True, True),
+                (" · σ̄", False, False),
+                ("i", True, True),
+                ("; ", False, False),
+                ("S", True, False),
+                ("p", True, True),
+                (" = ", False, False),
+                ("p", True, False),
+                ("0", False, True),
+                (" · ", False, False),
+                ("b", True, False),
+                (" · ", False, False),
+                ("k", True, False),
+                ("h", True, True),
+                (" · Σ ", False, False),
+                ("m", True, False),
+                ("th", True, True),
+                ("i", True, True),
+                (" · k", True, False),
+                ("μ", False, True),
+                ("i", True, True),
+                (" · (k", True, False),
+                ("i", True, True),
+                (",низ − k", False, False),
+                ("i", True, True),
+                (",верх)", False, False),
+            ]
         )
     )
 
-    paragraphs.append(_p(f"Площадная нагрузка p0 = F/(a·b) = {_format_value(breakdown.p0,3)} кПа"))
-    paragraphs.append(_p(f"Коэффициент kh(z/b) = {_format_value(breakdown.kh_value,3)}"))
+    paragraphs.append(
+        _p_runs(
+            [
+                ("Площадная нагрузка ", False, False),
+                ("p", True, False),
+                ("0", False, True),
+                (" = ", False, False),
+                ("F", True, False),
+                ("/(", False, False),
+                ("a", True, False),
+                ("·", False, False),
+                ("b", True, False),
+                (") = ", False, False),
+                (f"{_format_value(breakdown.p0,3)} кПа", False, False),
+            ]
+        )
+    )
+    paragraphs.append(
+        _p_runs(
+            [
+                ("Коэффициент ", False, False),
+                ("k", True, False),
+                ("h", True, True),
+                ("(", False, False),
+                ("z", True, False),
+                ("/", False, False),
+                ("b", True, False),
+                (") = ", False, False),
+                (f"{_format_value(breakdown.kh_value,3)}", False, False),
+            ]
+        )
+    )
 
     paragraphs.append(_p(f"Расчёт S_th (оттаивание), суммарно {_format_value(breakdown.sth, 6)} м:"))
     for step in breakdown.thaw_steps:
@@ -200,47 +298,125 @@ def build_thaw_depth_report(
 
     paragraphs.append(_p("Исходные параметры:"))
     paragraphs.append(
-        _p(
-            f"λth={_format_value(parameters['lambdath'], 6)} Вт/(м·°С); "
-            f"λf={_format_value(parameters['lambdaf'], 6)} Вт/(м·°С); "
-            f"R0={_format_value(parameters['R0'], 6)} м²·°С/Вт"
+        _p_runs(
+            [
+                ("λ", False, False),
+                ("th", True, True),
+                ("=", False, False),
+                (f"{_format_value(parameters['lambdath'], 6)} Вт/(м·°С); ", False, False),
+                ("λ", False, False),
+                ("f", True, True),
+                ("=", False, False),
+                (f"{_format_value(parameters['lambdaf'], 6)} Вт/(м·°С); ", False, False),
+                ("R", True, False),
+                ("0", False, True),
+                ("=", False, False),
+                (f"{_format_value(parameters['R0'], 6)} м²·°С/Вт", False, False),
+            ]
         )
     )
     paragraphs.append(
-        _p(
-            f"T0={_format_value(parameters['T0'], 3)} °С; "
-            f"Tbf={_format_value(parameters['Tbf'], 3)} °С; "
-            f"Tin={_format_value(parameters['Tin'], 3)} °С"
+        _p_runs(
+            [
+                ("T", True, False),
+                ("0", False, True),
+                ("=", False, False),
+                (f"{_format_value(parameters['T0'], 3)} °С; ", False, False),
+                ("T", True, False),
+                ("bf", True, True),
+                ("=", False, False),
+                (f"{_format_value(parameters['Tbf'], 3)} °С; ", False, False),
+                ("T", True, False),
+                ("in", True, True),
+                ("=", False, False),
+                (f"{_format_value(parameters['Tin'], 3)} °С", False, False),
+            ]
         )
     )
     paragraphs.append(
-        _p(
-            f"t={_format_value(parameters['t'], 3)} с; "
-            f"Lv={_format_value(parameters['Lv'], 3)} Дж/м³"
+        _p_runs(
+            [
+                ("t", True, False),
+                ("=", False, False),
+                (f"{_format_value(parameters['t'], 3)} с; ", False, False),
+                ("L", True, False),
+                ("v", True, True),
+                ("=", False, False),
+                (f"{_format_value(parameters['Lv'], 3)} Дж/м³", False, False),
+            ]
         )
     )
 
     paragraphs.append(_p("Промежуточные вычисления параметров:"))
     paragraphs.append(
-        _p(
-            "α_r = λ_th · R0 / B = "
-            f"{_format_value(parameters['lambdath'], 3)} · {_format_value(parameters['R0'], 3)} / {_format_value(B, 3)} "
-            f"= {_format_value(alpha_r, 6)}"
+        _p_runs(
+            [
+                ("α", False, False),
+                ("r", True, True),
+                (" = ", False, False),
+                ("λ", False, False),
+                ("th", True, True),
+                (" · ", False, False),
+                ("R", True, False),
+                ("0", False, True),
+                (" / ", False, False),
+                ("B", True, False),
+                (" = ", False, False),
+                (f"{_format_value(parameters['lambdath'], 3)} · {_format_value(parameters['R0'], 3)} / {_format_value(B, 3)} = ", False, False),
+                (f"{_format_value(alpha_r, 6)}", False, False),
+            ]
         )
     )
     paragraphs.append(
-        _p(
-            "β = −λ_f · (T0 − Tbf) / (λ_th · (Tin − Tbf)) = "
-            f"−{_format_value(parameters['lambdaf'], 3)} · ({_format_value(parameters['T0'], 3)} − {_format_value(parameters['Tbf'], 3)}) / "
-            f"({_format_value(parameters['lambdath'], 3)} · ({_format_value(parameters['Tin'], 3)} − {_format_value(parameters['Tbf'], 3)})) "
-            f"= {_format_value(beta, 6)}"
+        _p_runs(
+            [
+                ("β", False, False),
+                (" = −", False, False),
+                ("λ", False, False),
+                ("f", True, True),
+                (" · (", False, False),
+                ("T", True, False),
+                ("0", False, True),
+                (" − ", False, False),
+                ("T", True, False),
+                ("bf", True, True),
+                (") / (", False, False),
+                ("λ", False, False),
+                ("th", True, True),
+                (" · (", False, False),
+                ("T", True, False),
+                ("in", True, True),
+                (" − ", False, False),
+                ("T", True, False),
+                ("bf", True, True),
+                (")) = ", False, False),
+                (f"−{_format_value(parameters['lambdaf'], 3)} · ({_format_value(parameters['T0'], 3)} − {_format_value(parameters['Tbf'], 3)}) / (", False, False),
+                (f"{_format_value(parameters['lambdath'], 3)} · ({_format_value(parameters['Tin'], 3)} − {_format_value(parameters['Tbf'], 3)})) = {_format_value(beta, 6)}", False, False),
+            ]
         )
     )
     paragraphs.append(
-        _p(
-            "ψ = λ_th · Tin · t / (Lv · B²) = "
-            f"{_format_value(parameters['lambdath'], 3)} · {_format_value(parameters['Tin'], 3)} · {_format_value(parameters['t'], 3)} / "
-            f"({_format_value(parameters['Lv'], 3)} · {_format_value(B, 3)}²) = {_format_value(psi, 6)}"
+        _p_runs(
+            [
+                ("ψ", False, False),
+                (" = ", False, False),
+                ("λ", False, False),
+                ("th", True, True),
+                (" · ", False, False),
+                ("T", True, False),
+                ("in", True, True),
+                (" · ", False, False),
+                ("t", True, False),
+                (" / (", False, False),
+                ("L", True, False),
+                ("v", True, True),
+                (" · ", False, False),
+                ("B", True, False),
+                ("2", False, True),
+                (") = ", False, False),
+                (f"{_format_value(parameters['lambdath'], 3)} · {_format_value(parameters['Tin'], 3)} · {_format_value(parameters['t'], 3)} / (", False, False),
+                (f"{_format_value(parameters['Lv'], 3)} · {_format_value(B, 3)}²) = {_format_value(psi, 6)}", False, False),
+            ]
         )
     )
     paragraphs.append(_p(clamping_note))
@@ -299,24 +475,55 @@ def build_thaw_depth_report(
     )
 
     paragraphs.append(
-        _p(
-            "Расчёт глубины в центре: Hc = k_n · (ξ_c − k_c) · B = "
-            f"{_format_value(kn_value, 6)} · ({_format_value(xi_c, 6)} − {_format_value(kc_value, 6)}) · {_format_value(B, 3)} "
-            f"= {_format_value(hc, 6)} м"
+        _p_runs(
+            [
+                ("Расчёт глубины в центре: ", False, False),
+                ("H", True, False),
+                ("c", True, True),
+                (" = ", False, False),
+                ("k", True, False),
+                ("n", True, True),
+                (" · (ξ", False, False),
+                ("c", True, True),
+                (" − k", False, False),
+                ("c", True, True),
+                (") · B = ", False, False),
+                (f"{_format_value(kn_value, 6)} · ({_format_value(xi_c, 6)} − {_format_value(kc_value, 6)}) · {_format_value(B, 3)} = {_format_value(hc, 6)} м", False, False),
+            ]
         )
     )
     paragraphs.append(
-        _p(
-            "Расчёт глубины у края: He = k_n · (ξ_e − k_e − 0.18·β·√ψ) · B = "
-            f"{_format_value(kn_value, 6)} · ({_format_value(xi_e, 6)} − {_format_value(ke_value, 6)} − "
-            f"0.18·{_format_value(beta, 6)}·√{_format_value(psi, 6)}) · {_format_value(B, 3)} = {_format_value(he, 6)} м"
+        _p_runs(
+            [
+                ("Расчёт глубины у края: ", False, False),
+                ("H", True, False),
+                ("e", True, True),
+                (" = ", False, False),
+                ("k", True, False),
+                ("n", True, True),
+                (" · (ξ", False, False),
+                ("e", True, True),
+                (" − k", False, False),
+                ("e", True, True),
+                (" − 0.18·β·√ψ) · B = ", False, False),
+                (f"{_format_value(kn_value, 6)} · ({_format_value(xi_e, 6)} − {_format_value(ke_value, 6)} − 0.18·{_format_value(beta, 6)}·√{_format_value(psi, 6)}) · {_format_value(B, 3)} = {_format_value(he, 6)} м", False, False),
+            ]
         )
     )
 
     paragraphs.append(
-        _p(
-            f"Глубина оттаивания под центром Hc={_format_value(hc, 6)} м; "
-            f"глубина оттаивания под краем He={_format_value(he, 6)} м"
+        _p_runs(
+            [
+                ("Глубина оттаивания под центром ", False, False),
+                ("H", True, False),
+                ("c", True, True),
+                ("=", False, False),
+                (f"{_format_value(hc, 6)} м; глубина оттаивания под краем ", False, False),
+                ("H", True, False),
+                ("e", True, True),
+                ("=", False, False),
+                (f"{_format_value(he, 6)} м", False, False),
+            ]
         )
     )
 
