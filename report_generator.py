@@ -264,13 +264,39 @@ def _add_breakdown_paragraphs(paragraphs: list[str], breakdown: SettlementBreakd
     for step in breakdown.thaw_steps:
         paragraphs.append(_p(_render_thaw_step(step)))
 
-    paragraphs.append(_p(f"Расчёт S_p (нагрузка), суммарно {_format_value(breakdown.sp, 6)} м:"))
+    paragraphs.append(
+        _p_runs(
+            [
+                ("Расчёт ", False, False),
+                ("S", True, False),
+                ("p", True, True),
+                (" (нагрузка), суммарно ", False, False),
+                (f"{_format_value(breakdown.sp, 6)} м:", False, False),
+            ]
+        )
+    )
     for step in breakdown.load_steps:
         paragraphs.append(_render_load_step(step, H=H, depth=breakdown.depth))
 
     paragraphs.append(
-        _p(
-            f"Итого при Hc={_format_value(breakdown.depth,3)} м: S = S_th + S_p = {_format_value(breakdown.sth,6)} + {_format_value(breakdown.sp,6)} = {_format_value(breakdown.total,6)} м"
+        _p_runs(
+            [
+                ("Итого при Hc=", False, False),
+                (f"{_format_value(breakdown.depth,3)} м: ", False, False),
+                ("S", True, False),
+                (" = ", False, False),
+                ("S", True, False),
+                ("th", True, True),
+                (" + ", False, False),
+                ("S", True, False),
+                ("p", True, True),
+                (" = ", False, False),
+                (f"{_format_value(breakdown.sth,6)}", False, False),
+                (" + ", False, False),
+                (f"{_format_value(breakdown.sp,6)}", False, False),
+                (" = ", False, False),
+                (f"{_format_value(breakdown.total,6)} м", False, False),
+            ]
         )
     )
 
