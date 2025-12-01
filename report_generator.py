@@ -330,9 +330,16 @@ def build_thaw_depth_report(
     paragraphs.append(_p("Отчёт по расчёту глубины оттаивания", style="Heading1"))
     paragraphs.append(_p(f"Дата: {_dt.datetime.now().strftime('%d.%m.%Y %H:%M')}"))
     paragraphs.append(
-        _p(
-            "Форма фундамента: "
-            f"{foundation_shape}; L={_format_value(L, 3)} м; B={_format_value(B, 3)} м"
+        _p_runs(
+            [
+                ("Форма фундамента: ", False, False),
+                (foundation_shape, False, False),
+                ("; ", False, False),
+                ("L", True, False),
+                (f"={_format_value(L, 3)} м; ", False, False),
+                ("B", True, False),
+                (f"={_format_value(B, 3)} м", False, False),
+            ]
         )
     )
 
@@ -492,9 +499,17 @@ def build_thaw_depth_report(
                 ("n", True, True),
                 ("=", False, False),
                 (f"{_format_value(kn_value, 6)} получен из раздела таблицы К.1 для прямоугольного ", False, False),
-                ("фундамента: фактическое отношение L/B=", False, False),
+                ("фундамента: фактическое отношение ", False, False),
+                ("L", True, False),
+                ("/", False, False),
+                ("B", True, False),
+                ("=", False, False),
                 (f"{_format_value(ratio, 3)}", False, False),
-                (", выбрана часть таблицы с L/B=", False, False),
+                (", выбрана часть таблицы с ", False, False),
+                ("L", True, False),
+                ("/", False, False),
+                ("B", True, False),
+                ("=", False, False),
                 (f"{nearest_ratio:.1f}", False, False),
                 (". Значение определено по ψ=", False, False),
                 (f"{_format_value(psi_for_tables, 3)}", False, False),
@@ -595,7 +610,9 @@ def build_thaw_depth_report(
                 ("c", True, True),
                 (" − k", False, False),
                 ("c", True, True),
-                (") · B = ", False, False),
+                (") · ", False, False),
+                ("B", True, False),
+                (" = ", False, False),
                 (f"{_format_value(kn_value, 6)} · ({_format_value(xi_c, 6)} − {_format_value(kc_value, 6)}) · {_format_value(B, 3)} = {_format_value(hc, 6)} м", False, False),
             ]
         )
@@ -613,7 +630,9 @@ def build_thaw_depth_report(
                 ("e", True, True),
                 (" − k", False, False),
                 ("e", True, True),
-                (" − 0.18·β·√ψ) · B = ", False, False),
+                (" − 0.18·β·√ψ) · ", False, False),
+                ("B", True, False),
+                (" = ", False, False),
                 (f"{_format_value(kn_value, 6)} · ({_format_value(xi_e, 6)} − {_format_value(ke_value, 6)} − 0.18·{_format_value(beta, 6)}·√{_format_value(psi, 6)}) · {_format_value(B, 3)} = {_format_value(he, 6)} м", False, False),
             ]
         )
