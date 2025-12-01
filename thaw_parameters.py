@@ -73,6 +73,10 @@ def calculate_he(
 
     kn = kn_from_psi_beta(psi, beta, shape=shape, L=L, B=B)
     xi_e = ksi_e(psi, beta)
+
+    if alpha_r == 0:
+        return kn * xi_e * B
+
     ke = ke_from_psi_alpha(psi, alpha_r)
     correction = 0.18 * beta * sqrt(psi)
     return kn * (xi_e - ke - correction) * B
