@@ -38,55 +38,55 @@ DOC_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:docDefaults>
-    <w:rPrDefault>
+    <w:docDefaults>
+      <w:rPrDefault>
+        <w:rPr>
+          <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
+          <w:sz w:val="28"/>
+          <w:szCs w:val="28"/>
+        </w:rPr>
+      </w:rPrDefault>
+      <w:pPrDefault>
+        <w:pPr>
+          <w:spacing w:line="360" w:lineRule="auto"/>
+          <w:ind w:firstLine="709"/>
+          <w:jc w:val="both"/>
+        </w:pPr>
+      </w:pPrDefault>
+    </w:docDefaults>
+    <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+      <w:name w:val="Normal"/>
+      <w:qFormat/>
+      <w:pPr>
+        <w:spacing w:line="360" w:lineRule="auto"/>
+        <w:ind w:firstLine="709"/>
+        <w:jc w:val="both"/>
+      </w:pPr>
       <w:rPr>
         <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
         <w:sz w:val="28"/>
         <w:szCs w:val="28"/>
       </w:rPr>
-    </w:rPrDefault>
-    <w:pPrDefault>
-      <w:pPr>
-        <w:spacing w:line="360" w:lineRule="auto"/>
-        <w:ind w:firstLine="709"/>
-        <w:jc w:val="center"/>
-      </w:pPr>
-    </w:pPrDefault>
-  </w:docDefaults>
-  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
-    <w:name w:val="Normal"/>
-    <w:qFormat/>
-    <w:pPr>
-      <w:spacing w:line="360" w:lineRule="auto"/>
-      <w:ind w:firstLine="709"/>
-      <w:jc w:val="center"/>
-    </w:pPr>
-    <w:rPr>
-      <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>
-      <w:sz w:val="28"/>
-      <w:szCs w:val="28"/>
-    </w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading1">
-    <w:name w:val="heading 1"/>
-    <w:basedOn w:val="Normal"/>
-    <w:next w:val="Normal"/>
-    <w:uiPriority w:val="9"/>
-    <w:qFormat/>
-    <w:pPr><w:spacing w:after="120"/></w:pPr>
-    <w:rPr><w:b/><w:sz w:val="32"/></w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading2">
-    <w:name w:val="heading 2"/>
-    <w:basedOn w:val="Normal"/>
-    <w:next w:val="Normal"/>
-    <w:uiPriority w:val="9"/>
-    <w:qFormat/>
-    <w:pPr><w:spacing w:after="80"/></w:pPr>
-    <w:rPr><w:b/><w:sz w:val="28"/></w:rPr>
-  </w:style>
-</w:styles>
+    </w:style>
+    <w:style w:type="paragraph" w:styleId="Heading1">
+      <w:name w:val="heading 1"/>
+      <w:basedOn w:val="Normal"/>
+      <w:next w:val="Normal"/>
+      <w:uiPriority w:val="9"/>
+      <w:qFormat/>
+      <w:pPr><w:spacing w:after="120"/><w:jc w:val="center"/></w:pPr>
+      <w:rPr><w:b/><w:sz w:val="32"/></w:rPr>
+    </w:style>
+    <w:style w:type="paragraph" w:styleId="Heading2">
+      <w:name w:val="heading 2"/>
+      <w:basedOn w:val="Normal"/>
+      <w:next w:val="Normal"/>
+      <w:uiPriority w:val="9"/>
+      <w:qFormat/>
+      <w:pPr><w:spacing w:after="80"/><w:jc w:val="center"/></w:pPr>
+      <w:rPr><w:b/><w:sz w:val="28"/></w:rPr>
+    </w:style>
+  </w:styles>
 """
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
