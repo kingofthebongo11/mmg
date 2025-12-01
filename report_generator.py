@@ -129,9 +129,18 @@ def _body(paragraphs: Sequence[str]) -> str:
     )
 
 
-def _format_value(value: float, precision: int = 6) -> str:
+def _format_value(value: float, precision: int = 3) -> str:
+    """Возвращает значение с тремя знаками после точки или в экспоненциальной форме."""
+
+    # Новое правило отчётов — фиксированные три знака после точки для всех чисел.
+    precision = 3
+
     if math.isnan(value):
         return "н/д"
+
+    if value != 0 and abs(value) < 10 ** -precision:
+        return f"{value:.{precision}e}"
+
     return f"{value:.{precision}f}"
 
 
