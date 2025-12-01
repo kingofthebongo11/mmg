@@ -292,7 +292,7 @@ def build_thaw_depth_report(
     psi_clamped = min(max(psi, 0.0), 3.5)
     psi_for_tables = psi_clamped
     clamping_note = (
-        f"Исходное значение ψ={_format_value(psi, 3)} превышает 3.5. "
+        f"Полученное значение ψ={_format_value(psi, 3)} превышает 3.5. "
         f"Для поиска по таблицам берём граничное значение ψ={_format_value(psi_for_tables, 3)}, "
         "дальнейшая интерполяция автоматически прижимает аргумент к верхней границе сетки."
     )
@@ -481,7 +481,7 @@ def build_thaw_depth_report(
     paragraphs.append(
         _p_runs(
             [
-                ("По таблице ", False, False),
+                ("По графикам ", False, False),
                 ("k", False, False),
                 ("c", False, True),
                 ("(ψ, α", False, False),
