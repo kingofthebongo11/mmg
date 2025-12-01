@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 from typing import Callable, Dict, Iterable, List, Sequence, Tuple
 
 from borehole_class import Borehole
 from grunt_class import PermafrostSoil, SoilType
-from II_calculations import disp_calculation
-from widgets import create_text, show_error
+from II_calculations import calculate_settlement, disp_calculation
+from report_generator import build_docx_report, build_thaw_depth_report
+from thaw_parameters import (
+    calculate_alpha_r,
+    calculate_beta,
+    calculate_hc,
+    calculate_he,
+    calculate_psi,
+)
+from widgets import ask_save_file, create_text, show_error
 
 
 class ParameterInput:
@@ -78,6 +86,12 @@ class SoilManager:
             callback()
 
     def add(self, soil: PermafrostSoil) -> None:
+        self._soils[soil.code] = soil
+        self._notify()
+
+    def update(self, old_code: str, soil: PermafrostSoil) -> None:
+        if old_code != soil.code and old_code in self._soils:
+            del self._soils[old_code]
         self._soils[soil.code] = soil
         self._notify()
 
@@ -186,7 +200,9 @@ class SoilDialog:
 
         self.var_code = tk.StringVar()
         self.var_name = tk.StringVar()
-        self.var_soil_type = tk.StringVar(value=list(SoilType)[0].name)
+        self._soil_type_labels: Dict[str, SoilType] = {st.value: st for st in SoilType}
+        first_soil_type = next(iter(self._soil_type_labels))
+        self.var_soil_type = tk.StringVar(value=first_soil_type)
         self.var_rho = tk.StringVar()
         self.var_Ath = tk.StringVar()
         self.var_mth = tk.StringVar()
@@ -204,7 +220,7 @@ class SoilDialog:
         ttk.Label(form, text="Тип грунта").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
         self.cmb_soil_type = ttk.Combobox(
             form,
-            values=[st.name for st in SoilType],
+            values=list(self._soil_type_labels.keys()),
             textvariable=self.var_soil_type,
             state="readonly",
         )
@@ -244,8 +260,15 @@ class SoilDialog:
             self.tree.column(col, width=100, anchor="center")
         self.tree.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="nsew")
 
-        ttk.Button(self.window, text="Удалить выбранный", command=self._remove_selected).grid(
-            row=2, column=0, padx=12, pady=(0, 12), sticky="e"
+        self.tree.bind("<<TreeviewSelect>>", self._on_select)
+
+        buttons = ttk.Frame(self.window)
+        buttons.grid(row=2, column=0, padx=12, pady=(0, 12), sticky="e")
+        ttk.Button(buttons, text="Обновить выбранный", command=self._update_selected).grid(
+            row=0, column=0, padx=(0, 8)
+        )
+        ttk.Button(buttons, text="Удалить выбранный", command=self._remove_selected).grid(
+            row=0, column=1
         )
 
         self.window.grid_rowconfigure(1, weight=1)
@@ -253,8 +276,10 @@ class SoilDialog:
 
         self._refresh_tree()
 
-    def _parse_float(self, value: str, *, allow_none: bool = False) -> float | None:
-        value = value.strip()
+    def _parse_float(self, value: tk.Variable | str, *, allow_none: bool = False) -> float | None:
+        if isinstance(value, tk.Variable):
+            value = value.get()
+        value = str(value).strip()
         if not value:
             if allow_none:
                 return None
@@ -264,7 +289,7 @@ class SoilDialog:
         except ValueError as exc:
             raise ValueError(f"Не удалось преобразовать '{value}' в число") from exc
 
-    def _add_soil(self) -> None:
+    def _build_soil_from_form(self) -> PermafrostSoil | None:
         code = self.var_code.get().strip()
         name = self.var_name.get().strip()
         rho = self._parse_float(self.var_rho)
@@ -272,14 +297,13 @@ class SoilDialog:
         mth = self._parse_float(self.var_mth, allow_none=True)
         if rho is None:
             raise AssertionError("rho не может быть None")
-        soil_type_name = self.var_soil_type.get()
+        soil_type_label = self.var_soil_type.get()
+        soil_type = self._soil_type_labels.get(soil_type_label)
+        if soil_type is None:
+            show_error("Ошибка", f"Неизвестный тип грунта: {soil_type_label}")
+            return None
         try:
-            soil_type = SoilType[soil_type_name]
-        except KeyError:
-            show_error("Ошибка", f"Неизвестный тип грунта: {soil_type_name}")
-            return
-        try:
-            soil = PermafrostSoil(
+            return PermafrostSoil(
                 code=code,
                 name=name,
                 soil_type=soil_type,
@@ -289,14 +313,59 @@ class SoilDialog:
             )
         except Exception as exc:
             show_error("Ошибка", str(exc))
-            return
-        self._manager.add(soil)
-        self._refresh_tree()
+            return None
+
+    def _reset_form(self) -> None:
         self.var_code.set("")
         self.var_name.set("")
         self.var_rho.set("")
         self.var_Ath.set("")
         self.var_mth.set("")
+        if self._soil_type_labels:
+            self.var_soil_type.set(next(iter(self._soil_type_labels)))
+
+    def _add_soil(self) -> None:
+        soil = self._build_soil_from_form()
+        if soil is None:
+            return
+        self._manager.add(soil)
+        self._refresh_tree(select_code=soil.code)
+        self._reset_form()
+
+    def _update_selected(self) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            show_error("Ошибка", "Не выбран грунт для обновления")
+            return
+        soil = self._build_soil_from_form()
+        if soil is None:
+            return
+        item_id = selection[0]
+        old_code = self.tree.set(item_id, "code")
+        self._manager.update(old_code, soil)
+        self._refresh_tree(select_code=soil.code)
+
+    def _on_select(self, event: object | None = None) -> None:
+        item_id = self._get_selected_item()
+        if not item_id:
+            return
+        self._fill_form_from_item(item_id)
+
+    def _get_selected_item(self) -> str | None:
+        selection = self.tree.selection()
+        if not selection:
+            return None
+        return selection[0]
+
+    def _fill_form_from_item(self, item_id: str) -> None:
+        self.var_code.set(self.tree.set(item_id, "code"))
+        self.var_name.set(self.tree.set(item_id, "name"))
+        soil_type = self.tree.set(item_id, "type")
+        if soil_type:
+            self.var_soil_type.set(soil_type)
+        self.var_rho.set(self.tree.set(item_id, "rho"))
+        self.var_Ath.set(self.tree.set(item_id, "Ath"))
+        self.var_mth.set(self.tree.set(item_id, "mth"))
 
     def _remove_selected(self) -> None:
         selection = self.tree.selection()
@@ -307,22 +376,277 @@ class SoilDialog:
         self._manager.remove(code)
         self._refresh_tree()
 
-    def _refresh_tree(self) -> None:
+    def _refresh_tree(self, *, select_code: str | None = None) -> None:
         for item in self.tree.get_children():
             self.tree.delete(item)
         for soil in self._manager.items():
-            self.tree.insert(
+            item_id = self.tree.insert(
                 "",
                 "end",
                 values=(
                     soil.code,
                     soil.name,
-                    soil.soil_type.name,
+                    soil.soil_type.value,
                     soil.rho,
                     soil.Ath if soil.Ath is not None else "",
                     soil.mth if soil.mth is not None else "",
                 ),
             )
+            if select_code and soil.code == select_code:
+                self.tree.selection_set(item_id)
+                self.tree.focus(item_id)
+
+
+class ThawDepthDialog:
+    """Окно для расчёта глубины оттаивания."""
+
+    def __init__(
+        self,
+        parent: tk.Tk,
+        on_apply: Callable[[str, str], None],
+        *,
+        foundation_shape: str,
+        default_L: str,
+        default_B: str,
+    ) -> None:
+        self._on_apply = on_apply
+
+        self.window = tk.Toplevel(parent)
+        self.window.title("Расчёт глубины оттаивания")
+        self.window.grab_set()
+        self.window.protocol("WM_DELETE_WINDOW", self._handle_close)
+
+        inputs_frame = ttk.LabelFrame(self.window, text="Исходные данные")
+        inputs_frame.grid(row=0, column=0, columnspan=2, padx=12, pady=(12, 8), sticky="we")
+
+        ttk.Label(inputs_frame, text="Форма фундамента").grid(row=0, column=0, sticky="w")
+        self.var_shape = tk.StringVar(value=foundation_shape)
+        self.cmb_shape = ttk.Combobox(
+            inputs_frame,
+            values=[foundation_shape],
+            textvariable=self.var_shape,
+            state="readonly",
+            width=18,
+        )
+        self.cmb_shape.grid(row=0, column=1, sticky="we", padx=(8, 0))
+        self.cmb_shape.current(0)
+
+        ttk.Label(inputs_frame, text="Размер L, м").grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self.var_L = tk.StringVar(value=default_L)
+        entry_L = create_text(inputs_frame, method="entry")
+        entry_L.configure(textvariable=self.var_L)
+        entry_L.grid(row=1, column=1, sticky="we", padx=(8, 0), pady=(4, 0))
+
+        ttk.Label(inputs_frame, text="Размер B, м").grid(row=2, column=0, sticky="w", pady=(4, 0))
+        self.var_B = tk.StringVar(value=default_B)
+        entry_B = create_text(inputs_frame, method="entry")
+        entry_B.configure(textvariable=self.var_B)
+        entry_B.grid(row=2, column=1, sticky="we", padx=(8, 0), pady=(4, 0))
+
+        self.param_inputs: Dict[str, ParameterInput] = {}
+        self.param_inputs["lambdath"] = ParameterInput(
+            inputs_frame,
+            label="λth — теплопроводность талого грунта, Вт/(м·°С)",
+            default=0.7,
+            units=[("Вт/(м·°С)", 1.0)],
+        )
+        self.param_inputs["lambdaf"] = ParameterInput(
+            inputs_frame,
+            label="λf — теплопроводность мёрзлого грунта, Вт/(м·°С)",
+            default=0.26,
+            units=[("Вт/(м·°С)", 1.0)],
+        )
+        self.param_inputs["R0"] = ParameterInput(
+            inputs_frame,
+            label="R0 — сопротивление теплопередаче пола, м²·°С/Вт",
+            default=0.19518717,
+            units=[("м²·°С/Вт", 1.0)],
+        )
+        self.param_inputs["T0"] = ParameterInput(
+            inputs_frame,
+            label="T0 — среднегодовая температура многолетнемёрзлых грунтов, °С",
+            default=-1.5,
+            units=[("°С", 1.0)],
+        )
+        self.param_inputs["Tbf"] = ParameterInput(
+            inputs_frame,
+            label="Tbf — температура начала замерзания грунта, °С",
+            default=-0.15,
+            units=[("°С", 1.0)],
+        )
+        self.param_inputs["Tin"] = ParameterInput(
+            inputs_frame,
+            label="Tin — расчётная температура воздуха внутри сооружения, °С",
+            default=5.0,
+            units=[("°С", 1.0)],
+        )
+        self.param_inputs["t"] = ParameterInput(
+            inputs_frame,
+            label="t — длительность периода, с",
+            default=1577880000,
+            units=[("с", 1.0)],
+        )
+        self.param_inputs["Lv"] = ParameterInput(
+            inputs_frame,
+            label="Lv — теплота таяния мёрзлого грунта, Дж/м³",
+            default=81585505,
+            units=[("Дж/м³", 1.0)],
+        )
+
+        for idx, widget in enumerate(self.param_inputs.values(), start=3):
+            widget.grid(row=idx, column=0, pady=(4, 0), sticky="we")
+
+        inputs_frame.grid_columnconfigure(1, weight=1)
+
+        ttk.Button(self.window, text="Расчёт", command=self._calculate).grid(
+            row=1, column=0, columnspan=2, padx=12, pady=(0, 12)
+        )
+
+        ttk.Label(self.window, text="Глубина Hc, м").grid(
+            row=2, column=0, sticky="e", padx=(12, 8), pady=(0, 4)
+        )
+        self.var_hc = tk.StringVar()
+        hc_entry = create_text(self.window, method="entry", state="readonly")
+        hc_entry.configure(textvariable=self.var_hc, width=18)
+        hc_entry.grid(row=2, column=1, sticky="w", padx=(0, 12), pady=(0, 4))
+
+        ttk.Label(self.window, text="Глубина He, м").grid(
+            row=3, column=0, sticky="e", padx=(12, 8)
+        )
+        self.var_he = tk.StringVar()
+        he_entry = create_text(self.window, method="entry", state="readonly")
+        he_entry.configure(textvariable=self.var_he, width=18)
+        he_entry.grid(row=3, column=1, sticky="w", padx=(0, 12))
+
+        ttk.Button(self.window, text="Отчёт", command=self._export_report).grid(
+            row=4, column=0, padx=(12, 6), pady=(8, 12), sticky="we"
+        )
+        ttk.Button(self.window, text="Применить", command=self._apply).grid(
+            row=4, column=1, padx=(6, 12), pady=(8, 12), sticky="we"
+        )
+
+        self.window.grid_columnconfigure(0, weight=1)
+        self.window.grid_columnconfigure(1, weight=1)
+
+    def _calculate(self) -> None:
+        try:
+            params = self._collect_inputs()
+        except Exception as exc:
+            messagebox.showerror("Ошибка", str(exc))
+            return
+
+        try:
+            results = self._compute_depths(params)
+        except ValueError as exc:
+            messagebox.showerror("Ошибка", str(exc))
+            return
+
+        self.var_hc.set(f"{results['hc']:.6g}")
+        self.var_he.set(f"{results['he']:.6g}")
+
+    def _collect_inputs(self) -> Dict[str, float]:
+        L = self._parse_float(self.var_L.get(), "L")
+        B = self._parse_float(self.var_B.get(), "B")
+        return {
+            "L": L,
+            "B": B,
+            "lambdath": self.param_inputs["lambdath"].get_value(),
+            "lambdaf": self.param_inputs["lambdaf"].get_value(),
+            "R0": self.param_inputs["R0"].get_value(),
+            "T0": self.param_inputs["T0"].get_value(),
+            "Tbf": self.param_inputs["Tbf"].get_value(),
+            "Tin": self.param_inputs["Tin"].get_value(),
+            "t": self.param_inputs["t"].get_value(),
+            "Lv": self.param_inputs["Lv"].get_value(),
+        }
+
+    def _compute_depths(self, params: Dict[str, float]) -> Dict[str, float]:
+        alpha_r = calculate_alpha_r(
+            lambdath=params["lambdath"], R0=params["R0"], B=params["B"]
+        )
+        beta = calculate_beta(
+            lambdaf=params["lambdaf"],
+            T0=params["T0"],
+            Tbf=params["Tbf"],
+            lambdath=params["lambdath"],
+            Tin=params["Tin"],
+        )
+        psi = calculate_psi(
+            lambdath=params["lambdath"],
+            Tin=params["Tin"],
+            t=params["t"],
+            Lv=params["Lv"],
+            B=params["B"],
+        )
+        hc_value = calculate_hc(
+            alpha_r=alpha_r,
+            beta=beta,
+            psi=psi,
+            B=params["B"],
+            shape=self.var_shape.get(),
+            L=params["L"],
+        )
+        he_value = calculate_he(
+            alpha_r=alpha_r,
+            beta=beta,
+            psi=psi,
+            B=params["B"],
+            shape=self.var_shape.get(),
+            L=params["L"],
+        )
+        return {
+            "alpha_r": alpha_r,
+            "beta": beta,
+            "psi": psi,
+            "hc": hc_value,
+            "he": he_value,
+        }
+
+    def _export_report(self) -> None:
+        try:
+            params = self._collect_inputs()
+            results = self._compute_depths(params)
+        except Exception as exc:
+            messagebox.showerror("Ошибка", str(exc))
+            return
+
+        path = ask_save_file(
+            defaultextension=".docx",
+            filetypes=[("Документ Word", "*.docx"), ("Все файлы", "*.*")],
+        )
+        if not path:
+            return
+
+        build_thaw_depth_report(
+            path,
+            foundation_shape=self.var_shape.get(),
+            L=params["L"],
+            B=params["B"],
+            parameters=params,
+            alpha_r=results["alpha_r"],
+            beta=results["beta"],
+            psi=results["psi"],
+            hc=results["hc"],
+            he=results["he"],
+        )
+        messagebox.showinfo("Отчёт", f"Файл сохранён:\n{path}")
+
+    def _parse_float(self, raw_value: str, name: str) -> float:
+        value = raw_value.strip()
+        if not value:
+            raise ValueError(f"Не задано значение {name}")
+        try:
+            return float(value.replace(",", "."))
+        except ValueError as exc:
+            raise ValueError(f"Некорректное значение {name}") from exc
+
+    def _apply(self) -> None:
+        self._on_apply(self.var_hc.get(), self.var_he.get())
+        self._handle_close()
+
+    def _handle_close(self) -> None:
+        self.window.grab_release()
+        self.window.destroy()
 
 
 class App:
@@ -333,6 +657,7 @@ class App:
         self.soil_manager = SoilManager()
         self.soil_manager.add_listener(self._update_layer_choices)
         self.soil_dialog: SoilDialog | None = None
+        self.thaw_depth_dialog: ThawDepthDialog | None = None
 
         main_frame = ttk.Frame(root, padding=12)
         main_frame.grid(row=0, column=0, sticky="nsew")
@@ -349,21 +674,27 @@ class App:
             default=6.0,
             units=[("м", 1.0)],
         )
+        self.inputs["He"] = ParameterInput(
+            params_frame,
+            label="Глубина оттаивания He",
+            default=6.0,
+            units=[("м", 1.0)],
+        )
         self.inputs["F"] = ParameterInput(
             params_frame,
             label="Нагрузка F",
             default=6821.0,
             units=[("кН", 1.0)],
         )
-        self.inputs["a"] = ParameterInput(
+        self.inputs["L"] = ParameterInput(
             params_frame,
-            label="Размер a",
+            label="Размер L",
             default=10.0,
             units=[("м", 1.0)],
         )
-        self.inputs["b"] = ParameterInput(
+        self.inputs["B"] = ParameterInput(
             params_frame,
-            label="Размер b",
+            label="Размер B",
             default=1.9,
             units=[("м", 1.0)],
         )
@@ -375,6 +706,12 @@ class App:
         )
         for idx, widget in enumerate(self.inputs.values()):
             widget.grid(row=idx, column=0, pady=4, sticky="we")
+
+        ttk.Button(
+            params_frame,
+            text="Рассчитать глубину оттаивания",
+            command=self._open_thaw_depth_dialog,
+        ).grid(row=len(self.inputs), column=0, pady=(4, 0), sticky="w")
 
         borehole_frame = ttk.LabelFrame(main_frame, text="Скважина")
         borehole_frame.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
@@ -421,11 +758,20 @@ class App:
         ttk.Button(result_frame, text="Расчёт", command=self._calculate).grid(
             row=0, column=0, padx=(0, 12)
         )
-        ttk.Label(result_frame, text="Результат, м").grid(row=0, column=1)
-        self.result_var = tk.StringVar()
-        result_entry = create_text(result_frame, method="entry", state="readonly")
-        result_entry.configure(textvariable=self.result_var, width=20)
-        result_entry.grid(row=0, column=2)
+        ttk.Label(result_frame, text="Результат Hc, м").grid(row=0, column=1)
+        self.result_hc_var = tk.StringVar()
+        result_hc_entry = create_text(result_frame, method="entry", state="readonly")
+        result_hc_entry.configure(textvariable=self.result_hc_var, width=16)
+        result_hc_entry.grid(row=0, column=2)
+
+        ttk.Label(result_frame, text="Результат He, м").grid(row=1, column=1, pady=(4, 0))
+        self.result_he_var = tk.StringVar()
+        result_he_entry = create_text(result_frame, method="entry", state="readonly")
+        result_he_entry.configure(textvariable=self.result_he_var, width=16)
+        result_he_entry.grid(row=1, column=2, pady=(4, 0))
+        ttk.Button(result_frame, text="Отчёт", command=self._export_report).grid(
+            row=0, column=3, rowspan=2, padx=(12, 0)
+        )
 
         main_frame.grid_rowconfigure(2, weight=1)
         main_frame.grid_columnconfigure(0, weight=1)
@@ -495,6 +841,31 @@ class App:
             return
         self.soil_dialog = SoilDialog(self.root, self.soil_manager)
 
+    def _open_thaw_depth_dialog(self) -> None:
+        if self.thaw_depth_dialog is not None and tk.Toplevel.winfo_exists(
+            self.thaw_depth_dialog.window
+        ):
+            self.thaw_depth_dialog.window.lift()
+            return
+
+        self.thaw_depth_dialog = ThawDepthDialog(
+            self.root,
+            on_apply=self._on_thaw_depth_apply,
+            foundation_shape="Прямоугольная",
+            default_L=self.inputs["L"].var.get(),
+            default_B="3",
+        )
+        self.thaw_depth_dialog.window.bind(
+            "<Destroy>", lambda event: self._on_thaw_depth_dialog_close()
+        )
+
+    def _on_thaw_depth_apply(self, hc_value: str, he_value: str) -> None:
+        self.inputs["Hc"].var.set(hc_value)
+        self.inputs["He"].var.set(he_value)
+
+    def _on_thaw_depth_dialog_close(self) -> None:
+        self.thaw_depth_dialog = None
+
     def _parse_float(self, value: str, *, allow_empty: bool = False) -> float:
         value = value.strip()
         if not value:
@@ -506,34 +877,129 @@ class App:
         except ValueError as exc:
             raise ValueError("Ожидалось числовое значение") from exc
 
+    def _collect_inputs(self) -> Tuple[Dict[str, float], Borehole]:
+        params = {name: widget.get_value() for name, widget in self.inputs.items()}
+        borehole_code = self.var_borehole_code.get().strip()
+        if not borehole_code:
+            raise ValueError("Название скважины не задано")
+        borehole_top = self._parse_float(self.var_borehole_top.get())
+
+        if not self.layer_rows:
+            raise ValueError("Не задан ни один слой скважины")
+
+        borehole = Borehole(code=borehole_code, z_top=borehole_top)
+        for row in self.layer_rows:
+            soil_code, thickness = row.get_data()
+            soil = self.soil_manager.get(soil_code)
+            borehole.add(soil, thickness)
+        return params, borehole
+
+    def _apply_fill_adjustments(
+        self, params: Dict[str, float], borehole: Borehole
+    ) -> tuple[Dict[str, float], float]:
+        """Корректировка нагрузки и глубины оттаивания с учётом насыпи."""
+
+        adjusted = dict(params)
+        fill_height = max(0.0, params["H"] - borehole.z_top)
+        if fill_height <= 0:
+            return adjusted, fill_height
+
+        fill_gamma_kNm3 = 1800.0 * 9.81 / 1000.0
+        additional_force = fill_gamma_kNm3 * fill_height * params["L"] * params["B"]
+
+        adjusted["F"] = params["F"] + additional_force
+        adjusted["Hc"] = max(0.0, params["Hc"] - fill_height)
+        adjusted["He"] = max(0.0, params["He"] - fill_height)
+        return adjusted, fill_height
+
     def _calculate(self) -> None:
         try:
-            params = {name: widget.get_value() for name, widget in self.inputs.items()}
-            borehole_code = self.var_borehole_code.get().strip()
-            if not borehole_code:
-                raise ValueError("Название скважины не задано")
-            borehole_top = self._parse_float(self.var_borehole_top.get())
-
-            if not self.layer_rows:
-                raise ValueError("Не задан ни один слой скважины")
-
-            borehole = Borehole(code=borehole_code, z_top=borehole_top)
-            for row in self.layer_rows:
-                soil_code, thickness = row.get_data()
-                soil = self.soil_manager.get(soil_code)
-                borehole.add(soil, thickness)
-
-            result = disp_calculation(
-                borehole=borehole,
-                Hc=params["Hc"],
-                H=params["H"],
-                F=params["F"],
-                a=params["a"],
-                b=params["b"],
-            )
-            self.result_var.set(f"{result:.6f}")
+            params, borehole = self._collect_inputs()
         except Exception as exc:
             show_error("Ошибка", str(exc))
+            return
+
+        try:
+            adjusted_params, _ = self._apply_fill_adjustments(params, borehole)
+
+            result_hc = disp_calculation(
+                borehole=borehole,
+                Hc=adjusted_params["Hc"],
+                H=adjusted_params["H"],
+                F=adjusted_params["F"],
+                a=adjusted_params["L"],
+                b=adjusted_params["B"],
+            )
+            self.result_hc_var.set(f"{result_hc:.6f}")
+
+            result_he = disp_calculation(
+                borehole=borehole,
+                Hc=adjusted_params["He"],
+                H=adjusted_params["H"],
+                F=adjusted_params["F"],
+                a=adjusted_params["L"],
+                b=adjusted_params["B"],
+            )
+            self.result_he_var.set(f"{result_he:.6f}")
+        except Exception as exc:
+            show_error("Ошибка", str(exc))
+
+    def _export_report(self) -> None:
+        try:
+            params, borehole = self._collect_inputs()
+        except Exception as exc:
+            show_error("Ошибка", str(exc))
+            return
+
+        path = ask_save_file(
+            defaultextension=".docx",
+            filetypes=[("Документ Word", "*.docx"), ("Все файлы", "*.*")],
+        )
+        if not path:
+            return
+
+        adjusted_params, _ = self._apply_fill_adjustments(params, borehole)
+
+        hc_result = calculate_settlement(
+            borehole=borehole,
+            Hc=adjusted_params["Hc"],
+            H=adjusted_params["H"],
+            F=adjusted_params["F"],
+            a=adjusted_params["L"],
+            b=adjusted_params["B"],
+        )
+        he_result = calculate_settlement(
+            borehole=borehole,
+            Hc=adjusted_params["He"],
+            H=adjusted_params["H"],
+            F=adjusted_params["F"],
+            a=adjusted_params["L"],
+            b=adjusted_params["B"],
+        )
+
+        layer_info = [
+            (
+                layer.soil.code,
+                layer.soil.name,
+                layer.soil.soil_type.value,
+                layer.soil.rho,
+                layer.soil.Ath,
+                layer.soil.mth,
+                layer.thickness,
+            )
+            for layer in borehole.layers
+        ]
+
+        build_docx_report(
+            path,
+            borehole_name=borehole.code,
+            borehole_top=borehole.z_top,
+            layers=layer_info,
+            params=adjusted_params,
+            Hc_result=hc_result,
+            He_result=he_result,
+        )
+        messagebox.showinfo("Отчёт", f"Файл сохранён:\n{path}")
 
 
 def main() -> None:
