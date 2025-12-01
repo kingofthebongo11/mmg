@@ -360,15 +360,27 @@ def build_thaw_depth_report(
             [
                 ("λ", False, False),
                 ("th", True, True),
-                ("=", False, False),
-                (f"{_format_value(parameters['lambdath'], 6)} Вт/(м·°С); ", False, False),
+                (" — теплопроводность талого грунта = ", False, False),
+                (f"{_format_value(parameters['lambdath'], 6)} Вт/(м·°С)", False, False),
+            ]
+        )
+    )
+    paragraphs.append(
+        _p_runs(
+            [
                 ("λ", False, False),
                 ("f", True, True),
-                ("=", False, False),
-                (f"{_format_value(parameters['lambdaf'], 6)} Вт/(м·°С); ", False, False),
+                (" — теплопроводность мёрзлого грунта = ", False, False),
+                (f"{_format_value(parameters['lambdaf'], 6)} Вт/(м·°С)", False, False),
+            ]
+        )
+    )
+    paragraphs.append(
+        _p_runs(
+            [
                 ("R", True, False),
                 ("0", False, True),
-                ("=", False, False),
+                (" — сопротивление теплопередаче пола = ", False, False),
                 (f"{_format_value(parameters['R0'], 6)} м²·°С/Вт", False, False),
             ]
         )
@@ -378,15 +390,27 @@ def build_thaw_depth_report(
             [
                 ("T", True, False),
                 ("0", False, True),
-                ("=", False, False),
-                (f"{_format_value(parameters['T0'], 3)} °С; ", False, False),
+                (" — среднегодовая температура многолетнемёрзлых грунтов = ", False, False),
+                (f"{_format_value(parameters['T0'], 3)} °С", False, False),
+            ]
+        )
+    )
+    paragraphs.append(
+        _p_runs(
+            [
                 ("T", True, False),
                 ("bf", True, True),
-                ("=", False, False),
-                (f"{_format_value(parameters['Tbf'], 3)} °С; ", False, False),
+                (" — температура начала замерзания грунта = ", False, False),
+                (f"{_format_value(parameters['Tbf'], 3)} °С", False, False),
+            ]
+        )
+    )
+    paragraphs.append(
+        _p_runs(
+            [
                 ("T", True, False),
                 ("in", True, True),
-                ("=", False, False),
+                (" — расчётная температура воздуха внутри сооружения = ", False, False),
                 (f"{_format_value(parameters['Tin'], 3)} °С", False, False),
             ]
         )
@@ -395,11 +419,17 @@ def build_thaw_depth_report(
         _p_runs(
             [
                 ("t", True, False),
-                ("=", False, False),
-                (f"{_format_value(parameters['t'], 3)} с; ", False, False),
+                (" — длительность периода = ", False, False),
+                (f"{_format_value(parameters['t'], 3)} с", False, False),
+            ]
+        )
+    )
+    paragraphs.append(
+        _p_runs(
+            [
                 ("L", True, False),
                 ("v", True, True),
-                ("=", False, False),
+                (" — теплота таяния мёрзлого грунта = ", False, False),
                 (f"{_format_value(parameters['Lv'], 3)} Дж/м³", False, False),
             ]
         )
