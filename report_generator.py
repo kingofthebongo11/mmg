@@ -146,9 +146,22 @@ def _render_thaw_step(step: ThawSettlementStep) -> str:
 def _render_load_step(step: LoadSettlementStep, *, H: float, depth: float) -> str:
     d_top = H - step.overlap_top
     d_bottom = H - step.overlap_bottom
-    return (
-        f"• {step.soil_code} ({step.soil_name}) — зона z∈[{_format_value(d_top,3)}; {_format_value(d_bottom,3)}] м при Hc={_format_value(depth,3)} м: "
-        f"kμi={_format_value(step.kmui,3)}, k_i={_format_value(step.ki_bottom - step.ki_top,3)}, вклад={_format_value(step.contribution,6)}"
+    return _p_runs(
+        [
+            ("• ", False, False),
+            (f"{step.soil_code} ({step.soil_name}) — зона z∈[{_format_value(d_top,3)}; {_format_value(d_bottom,3)}] м при Hc={_format_value(depth,3)} м: ", False, False),
+            ("kμ", False, False),
+            ("i", False, True),
+            ("=", False, False),
+            (f"{_format_value(step.kmui,3)}", False, False),
+            (", ", False, False),
+            ("k", False, False),
+            ("i", False, True),
+            ("=", False, False),
+            (f"{_format_value(step.ki_bottom - step.ki_top,3)}", False, False),
+            (", вклад=", False, False),
+            (f"{_format_value(step.contribution,6)}", False, False),
+        ]
     )
 
 
@@ -252,7 +265,7 @@ def _add_breakdown_paragraphs(paragraphs: list[str], breakdown: SettlementBreakd
 
     paragraphs.append(_p(f"Расчёт S_p (нагрузка), суммарно {_format_value(breakdown.sp, 6)} м:"))
     for step in breakdown.load_steps:
-        paragraphs.append(_p(_render_load_step(step, H=H, depth=breakdown.depth)))
+        paragraphs.append(_render_load_step(step, H=H, depth=breakdown.depth))
 
     paragraphs.append(
         _p(
@@ -430,35 +443,83 @@ def build_thaw_depth_report(
 
     normalized_shape = _normalize_shape(foundation_shape)
     if normalized_shape == "round":
-        psi_kn_note = (
-            "Коэффициент k_n="
-            f"{_format_value(kn_value, 6)} получен из раздела таблицы К.1 для круглого фундамента: "
-            "использованы ψ="
-            f"{_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)}, поиск выполнен "
-            "с интерполяцией по обоим параметрам и прижиманием аргументов к диапазону 0…2."
+        psi_kn_note = _p_runs(
+            [
+                ("Коэффициент ", False, False),
+                ("k", False, False),
+                ("n", False, True),
+                ("=", False, False),
+                (f"{_format_value(kn_value, 6)} получен из раздела таблицы К.1 для круглого фундамента: ", False, False),
+                ("использованы ψ=", False, False),
+                (f"{_format_value(psi_for_tables, 3)} и β={_format_value(beta, 3)}, поиск выполнен ", False, False),
+                ("с интерполяцией по обоим параметрам и прижиманием аргументов к диапазону 0…2.", False, False),
+            ]
         )
     else:
         ratio = float(L) / float(B)
         nearest_ratio = 1.0 if abs(ratio - 1.0) <= abs(ratio - 2.0) else 2.0
-        psi_kn_note = (
-            "Коэффициент k_n="
-            f"{_format_value(kn_value, 6)} получен из раздела таблицы К.1 для прямоугольного "
-            f"фундамента: фактическое отношение L/B={_format_value(ratio, 3)}, выбрана часть таблицы "
-            f"с L/B={nearest_ratio:.1f}. Значение определено по ψ={_format_value(psi_for_tables, 3)} "
-            f"и β={_format_value(beta, 3)} с интерполяцией и прижиманием аргументов к диапазону 0…2."
+        psi_kn_note = _p_runs(
+            [
+                ("Коэффициент ", False, False),
+                ("k", False, False),
+                ("n", False, True),
+                ("=", False, False),
+                (f"{_format_value(kn_value, 6)} получен из раздела таблицы К.1 для прямоугольного ", False, False),
+                ("фундамента: фактическое отношение L/B=", False, False),
+                (f"{_format_value(ratio, 3)}", False, False),
+                (", выбрана часть таблицы с L/B=", False, False),
+                (f"{nearest_ratio:.1f}", False, False),
+                (". Значение определено по ψ=", False, False),
+                (f"{_format_value(psi_for_tables, 3)}", False, False),
+                (" и β=", False, False),
+                (f"{_format_value(beta, 3)}", False, False),
+                (" с интерполяцией и прижиманием аргументов к диапазону 0…2.", False, False),
+            ]
         )
-    paragraphs.append(_p(psi_kn_note))
+    paragraphs.append(psi_kn_note)
 
     paragraphs.append(
-        _p(
-            f"По таблице k_c(ψ, α_r) при ψ={_format_value(psi_for_tables, 3)} и α_r={_format_value(alpha_r, 3)} "
-            f"принято k_c={_format_value(kc_value, 6)}"
+        _p_runs(
+            [
+                ("По таблице ", False, False),
+                ("k", False, False),
+                ("c", False, True),
+                ("(ψ, α", False, False),
+                ("r", False, True),
+                (") при ψ=", False, False),
+                (f"{_format_value(psi_for_tables, 3)}", False, False),
+                (" и α", False, False),
+                ("r", False, True),
+                ("=", False, False),
+                (f"{_format_value(alpha_r, 3)} ", False, False),
+                ("принято ", False, False),
+                ("k", False, False),
+                ("c", False, True),
+                ("=", False, False),
+                (f"{_format_value(kc_value, 6)}", False, False),
+            ]
         )
     )
     paragraphs.append(
-        _p(
-            f"По таблице k_e(ψ, α_r) при ψ={_format_value(psi_for_tables, 3)} и α_r={_format_value(alpha_r, 3)} "
-            f"принято k_e={_format_value(ke_value, 6)}"
+        _p_runs(
+            [
+                ("По таблице ", False, False),
+                ("k", False, False),
+                ("e", False, True),
+                ("(ψ, α", False, False),
+                ("r", False, True),
+                (") при ψ=", False, False),
+                (f"{_format_value(psi_for_tables, 3)}", False, False),
+                (" и α", False, False),
+                ("r", False, True),
+                ("=", False, False),
+                (f"{_format_value(alpha_r, 3)} ", False, False),
+                ("принято ", False, False),
+                ("k", False, False),
+                ("e", False, True),
+                ("=", False, False),
+                (f"{_format_value(ke_value, 6)}", False, False),
+            ]
         )
     )
     paragraphs.append(
