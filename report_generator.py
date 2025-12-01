@@ -149,7 +149,15 @@ def _render_load_step(step: LoadSettlementStep, *, H: float, depth: float) -> st
     return _p_runs(
         [
             ("• ", False, False),
-            (f"{step.soil_code} ({step.soil_name}) — зона z∈[{_format_value(d_top,3)}; {_format_value(d_bottom,3)}] м при Hc={_format_value(depth,3)} м: ", False, False),
+            (
+                f"{step.soil_code} ({step.soil_name}) — зона z∈[{_format_value(d_top,3)}; {_format_value(d_bottom,3)}] м при ",
+                False,
+                False,
+            ),
+            ("H", True, False),
+            ("c", True, True),
+            ("=", False, False),
+            (f"{_format_value(depth,3)} м: ", False, False),
             ("k", True, False),
             ("μ", False, False),
             ("i", True, True),
@@ -281,7 +289,10 @@ def _add_breakdown_paragraphs(paragraphs: list[str], breakdown: SettlementBreakd
     paragraphs.append(
         _p_runs(
             [
-                ("Итого при Hc=", False, False),
+                ("Итого при ", False, False),
+                ("H", True, False),
+                ("c", True, True),
+                ("=", False, False),
                 (f"{_format_value(breakdown.depth,3)} м: ", False, False),
                 ("S", True, False),
                 (" = ", False, False),
@@ -683,11 +694,30 @@ def build_docx_report(
     paragraphs.append(_p(f"Скважина {borehole_name}, отметка устья {borehole_top} м"))
 
     paragraphs.append(
-        _p(
-            "Исходные данные: H="
-            f"{_format_value(params['H'],3)} м; F={_format_value(params['F'],3)} кН; "
-            f"L={_format_value(params['L'],3)} м; B={_format_value(params['B'],3)} м; "
-            f"Hc={_format_value(params['Hc'],3)} м; He={_format_value(params['He'],3)} м"
+        _p_runs(
+            [
+                ("Исходные данные: ", False, False),
+                ("H", True, False),
+                ("=", False, False),
+                (f"{_format_value(params['H'],3)} м; ", False, False),
+                ("F", True, False),
+                ("=", False, False),
+                (f"{_format_value(params['F'],3)} кН; ", False, False),
+                ("L", True, False),
+                ("=", False, False),
+                (f"{_format_value(params['L'],3)} м; ", False, False),
+                ("B", True, False),
+                ("=", False, False),
+                (f"{_format_value(params['B'],3)} м; ", False, False),
+                ("H", True, False),
+                ("c", True, True),
+                ("=", False, False),
+                (f"{_format_value(params['Hc'],3)} м; ", False, False),
+                ("H", True, False),
+                ("e", True, True),
+                ("=", False, False),
+                (f"{_format_value(params['He'],3)} м", False, False),
+            ]
         )
     )
 
